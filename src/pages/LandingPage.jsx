@@ -3,10 +3,9 @@ import { Link } from "react-router-dom";
 import DatePicker from "react-datepicker";
 import { format } from "date-fns";
 import { ArrowRight, Plus } from "lucide-react";
-import { MapContainer, TileLayer } from "react-leaflet";
 import { getTrips, createTrip } from "../firebase";
+import TripPreviewMap from "./TripPreviewMap"; // New dynamic component
 
-// Required CSS for Leaflet maps to render correctly
 import "leaflet/dist/leaflet.css";
 import "react-datepicker/dist/react-datepicker.css";
 
@@ -48,10 +47,19 @@ export default function LandingPage() {
     <div className="page-container">
       <h1 className="title">Itineraries</h1>
 
-      <div>
+      {/* Increased marginTop here to create a 60px gap from the title */}
+      <div
+        className="trips-list"
+        style={{ marginTop: "60px", paddingBottom: "30px" }}
+      >
         {trips.length === 0 ? (
           <div
-            style={{ padding: "40px 0", color: "#646473", fontSize: "14px" }}
+            style={{
+              padding: "60px 0",
+              color: "#646473",
+              fontSize: "14px",
+              textAlign: "center",
+            }}
           >
             <p>No active itineraries.</p>
           </div>
@@ -63,29 +71,17 @@ export default function LandingPage() {
               <h2>{trip.name}</h2>
               <div className="card-dates">
                 <span>{trip.startDate}</span>
-                <ArrowRight size={14} strokeWidth={1.25} color="#888" />
+                <ArrowRight
+                  size={14}
+                  strokeWidth={1.5}
+                  style={{ opacity: 0.5 }}
+                />
                 <span>{trip.endDate}</span>
               </div>
             </div>
 
-            {/* Read-Only Map Preview using Esri Light Gray Canvas */}
-            <div className="map-preview-container">
-              <MapContainer
-                center={[41.3275, 19.8187]} // Defaults to Tirana, Albania for preview
-                zoom={5}
-                zoomControl={false}
-                dragging={false}
-                scrollWheelZoom={false}
-                doubleClickZoom={false}
-                touchZoom={false}
-                style={{ height: "100%", width: "100%", zIndex: 1 }}
-              >
-                <TileLayer
-                  url="https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}"
-                  attribution="&copy; Esri, HERE, Garmin, FAO, NOAA, USGS"
-                />
-              </MapContainer>
-            </div>
+            {/* Read-Only DYNAMIC Map Preview */}
+            <TripPreviewMap tripId={trip.id} />
           </Link>
         ))}
       </div>
@@ -99,8 +95,8 @@ export default function LandingPage() {
       {isModalOpen && (
         <div className="modal-overlay" onClick={() => setIsModalOpen(false)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <div style={{ marginBottom: "30px" }}>
-              <h2 style={{ fontSize: "18px", fontWeight: "500" }}>
+            <div style={{ marginBottom: "24px" }}>
+              <h2 style={{ fontSize: "18px", fontWeight: "600" }}>
                 Draft Itinerary
               </h2>
             </div>

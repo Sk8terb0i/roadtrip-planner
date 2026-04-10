@@ -2,14 +2,15 @@ import { initializeApp } from "firebase/app";
 import {
   getFirestore,
   collection,
-  addDoc,
-  getDocs,
-  getDoc,
-  doc,
   query,
+  where,
+  getDocs,
   orderBy,
+  addDoc,
   updateDoc,
+  doc,
   deleteDoc,
+  getDoc,
 } from "firebase/firestore";
 
 const firebaseConfig = {
@@ -21,6 +22,7 @@ const firebaseConfig = {
   appId: "1:544592275714:web:e9dd2c4a6351519acb7a1b",
 };
 
+// Initialize Firebase
 const app = initializeApp(firebaseConfig);
 export const db = getFirestore(app);
 
@@ -57,6 +59,7 @@ export const addStop = async (tripId, stopData) => {
 export const getStops = async (tripId) => {
   const q = query(
     collection(db, "Trips", tripId, "Stops"),
+    orderBy("day", "asc"),
     orderBy("order", "asc"),
   );
   const querySnapshot = await getDocs(q);
@@ -66,14 +69,37 @@ export const getStops = async (tripId) => {
   }));
 };
 
-// NEW: Update an existing stop
+// Update an existing stop
 export const updateStop = async (tripId, stopId, stopData) => {
   const stopRef = doc(db, "Trips", tripId, "Stops", stopId);
   await updateDoc(stopRef, stopData);
 };
 
-// NEW: Delete a stop
+// Delete a stop
 export const deleteStop = async (tripId, stopId) => {
   const stopRef = doc(db, "Trips", tripId, "Stops", stopId);
   await deleteDoc(stopRef);
+};
+
+/**
+ * Specialized function for dynamic trip card preview.
+ * Fetches only the stops marked with the 'bed' (hotel) icon.
+ */
+export const getTripHotels = async (tripId) => {
+  try {
+    const q = query(
+      collection(db, "Trips", tripId, "Stops"),
+      where("icon", "==", "bed"),
+      orderBy("day", "asc"),
+      orderBy("order", "asc"),
+    );
+    const querySnapshot = await getDocs(q);
+    return querySnapshot.docs.map((document) => ({
+      id: document.id,
+      ...document.data(),
+    }));
+  } catch (error) {
+    console.error("Error fetching hotels for preview:", error);
+    return [];
+  }
 };
