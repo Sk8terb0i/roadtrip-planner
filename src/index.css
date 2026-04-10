@@ -1,5 +1,6 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap');
 
+/* --- Reset & Base --- */
 * {
   box-sizing: border-box;
   margin: 0;
@@ -11,7 +12,7 @@ body {
   color: #1a1a24;
   overscroll-behavior-y: none;
   min-height: 100vh;
-  /* Updated: Softer, more spacious Lavender fading into Sage */
+  /* Atmosphere: Softer, more spacious Lavender fading into Sage */
   background: linear-gradient(145deg, #f3f0f9 0%, #f7faf2 100%);
   background-attachment: fixed;
 }
@@ -20,6 +21,14 @@ body {
   padding: 40px 24px 100px 24px;
   max-width: 500px;
   margin: 0 auto;
+}
+
+/* --- Typography --- */
+.title {
+  font-size: 28px;
+  font-weight: 400;
+  letter-spacing: -0.5px;
+  margin-bottom: 20px;
 }
 
 .label {
@@ -32,11 +41,99 @@ body {
   display: block;
 }
 
-/* Info Panel (Bottom Sheet) */
+/* --- Landing Page Itinerary Cards --- */
+.trips-list {
+  margin-top: 48px; /* Increased gap from title */
+  padding-bottom: 30px;
+}
+
+.trip-card {
+  display: block;
+  background: rgba(255, 255, 255, 0.85); 
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  border-radius: 12px; 
+  padding: 20px; /* Breathing room inside card */
+  margin-bottom: 24px;
+  text-decoration: none; 
+  color: #1a1a24;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08);
+  transition: transform 0.2s ease;
+  overflow: hidden; 
+}
+
+.trip-card:active {
+  transform: scale(0.98);
+}
+
+.trip-card h2 {
+  font-size: 18px;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.card-dates {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: #646473;
+}
+
+/* --- Map Preview (Landing Page) --- */
+.map-preview-container {
+  width: 100%;
+  height: 160px; /* Increased for better route visibility */
+  border-radius: 12px;
+  overflow: hidden;
+  margin-top: 20px;
+  background: #f8f9fa;
+  border: 1px solid rgba(0,0,0,0.04);
+  position: relative;
+}
+
+.map-preview-placeholder {
+  width: 100%;
+  height: 160px;
+  background: rgba(255, 255, 255, 0.4);
+  border-radius: 12px;
+  margin-top: 20px;
+}
+
+/* --- Trip Planner Layout & Map --- */
+.planner-layout {
+  position: relative;
+  height: 100vh;
+  width: 100%;
+  overflow: hidden;
+}
+
+.map-half {
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  z-index: 1;
+}
+
+/* Leaflet height fix */
+.map-half .leaflet-container,
+.map-preview-container .leaflet-container {
+  height: 100% !important;
+  width: 100% !important;
+  background: #f8f9fa;
+}
+
+.editorial-map-filter {
+  filter: grayscale(100%) contrast(1.1) brightness(1.05);
+  mix-blend-mode: multiply; 
+  opacity: 0.8; 
+}
+
+/* --- Planner Bottom Sheet --- */
 .bottom-sheet {
   position: absolute;
   bottom: 0; left: 0; right: 0;
-  background: #fdfff1; /* Cream */
+  background: #fdfff1; /* Cream Info Panel Color */
   border-radius: 24px 24px 0 0;
   box-shadow: 0 -15px 40px rgba(0,0,0,0.12);
   z-index: 10;
@@ -65,7 +162,7 @@ body {
   border-radius: 10px;
 }
 
-/* Navigation Pills */
+/* --- Navigation & Buttons --- */
 .day-filters {
   display: flex;
   gap: 10px;
@@ -91,7 +188,24 @@ body {
   opacity: 0.6;
 }
 
-/* Timeline */
+.btn-primary {
+  background: #1a1a24 !important;
+  color: #fff !important;
+  padding: 16px;
+  border: none;
+  border-radius: 12px; 
+  width: 100%;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+
+/* --- Timeline Elements --- */
 .timeline-container {
   padding: 24px;
   overflow-y: auto;
@@ -109,7 +223,7 @@ body {
   top: 0;
   width: 26px;
   height: 26px;
-  background: #b7c39b; /* Activity Olive */
+  background: #b7c39b; /* Unified Activity Olive */
   border-radius: 50%;
   display: flex;
   align-items: center;
@@ -118,7 +232,21 @@ body {
   z-index: 2;
 }
 
-/* Travel Bridge Badge */
+.day-separator {
+  font-size: 11px;
+  text-transform: uppercase;
+  font-weight: 700;
+  color: #1a1a24;
+  background: #fff;
+  padding: 6px 14px;
+  border-radius: 20px;
+  display: inline-block;
+  margin: 10px 0 24px 0;
+  letter-spacing: 0.8px;
+  border: 1px solid rgba(0,0,0,0.1);
+}
+
+/* Travel Bridge Badges */
 .info-panel-badge {
   background: #ffffff !important; 
   border: 1px solid rgba(0,0,0,0.08) !important;
@@ -126,56 +254,15 @@ body {
   color: #1a1a24;
 }
 
-/* Primary Action Buttons */
-.btn-primary {
-  background: #1a1a24 !important;
-  color: #fff !important;
-  padding: 16px;
-  border: none;
-  border-radius: 12px; 
-  width: 100%;
-  font-size: 15px;
-  font-weight: 600;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-}
-
-/* --- Map Layout Fixes --- */
-.planner-layout {
-  position: relative;
-  height: 100vh;
-  width: 100%;
-  overflow: hidden;
-}
-
-.map-half {
-  position: absolute;
+/* --- Form Modals --- */
+.modal-overlay {
+  position: fixed;
   top: 0; left: 0; right: 0; bottom: 0;
-  z-index: 1;
-}
-
-/* CRITICAL: Leaflet container MUST have height */
-.map-half .leaflet-container {
-  height: 100% !important;
-  width: 100% !important;
-}
-
-.editorial-map-filter {
-  filter: grayscale(100%) contrast(1.1) brightness(1.05);
-  mix-blend-mode: multiply; 
-  opacity: 0.8; 
-}
-
-.custom-map-marker {
-  border-radius: 50%;
+  background: rgba(20, 20, 25, 0.4);
+  backdrop-filter: blur(8px);
   display: flex;
-  align-items: center;
-  justify-content: center;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.2);
-  border: 2px solid #fff;
+  align-items: flex-end;
+  z-index: 100;
 }
 
 .modal-content {
@@ -195,54 +282,25 @@ body {
   border-radius: 10px; 
   font-size: 15px;
   outline: none;
+  font-family: inherit;
 }
 
-.day-separator {
-  font-size: 11px;
-  text-transform: uppercase;
-  font-weight: 700;
-  color: #1a1a24;
-  background: #fff;
-  padding: 6px 14px;
-  border-radius: 20px;
-  display: inline-block;
-  margin: 10px 0 24px 0;
-  letter-spacing: 0.8px;
-  border: 1px solid rgba(0,0,0,0.1);
+.date-row {
+  display: flex;
+  gap: 12px;
 }
 
-/* Landing Page Card: Added breathing room & better depth */
-.trip-card {
-  display: block;
-  background: rgba(255, 255, 255, 0.85); 
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.5);
-  border-radius: 12px; 
-  padding: 20px; /* Increased for breathing room */
-  margin-bottom: 24px;
-  text-decoration: none; 
-  color: #1a1a24;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08);
-  transition: transform 0.2s ease;
-  overflow: hidden; 
+/* --- Map Markers & Paths --- */
+.custom-map-marker {
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+  border: 2px solid #fff;
 }
 
-/* Map Preview: Increased height for route visibility */
-.map-preview-container {
-  width: 100%;
-  height: 140px; /* Increased height */
-  border-radius: 10px;
-  overflow: hidden;
-  margin-top: 16px;
-  border: 1px solid rgba(0,0,0,0.06);
-}
-
-.trip-card:active {
-  transform: scale(0.98);
-}
-
-/* Fix for Map Polylines visibility in cards */
+/* Fix for map line consistency */
 .leaflet-zoom-animated path,
 .leaflet-container svg path,
 .leaflet-overlay-pane svg path {

@@ -27,6 +27,7 @@ import {
   ExternalLink,
   Info,
   Car,
+  MousePointer2,
 } from "lucide-react";
 import {
   getTrip,
@@ -124,6 +125,35 @@ function MapUpdater({ mapStops, setIsMapMoving }) {
   return null;
 }
 
+// --- NEW: Map Click Handler Component ---
+function MapClickHandler({ isPicking, onPick }) {
+  useMapEvents({
+    click: async (e) => {
+      if (!isPicking) return;
+      const { lat, lng } = e.latlng;
+
+      // Optional: Reverse Geocoding to get a name for the pinned spot
+      let locationName = "Dropped Pin";
+      try {
+        const res = await fetch(
+          `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}`,
+        );
+        const data = await res.json();
+        locationName =
+          data.name ||
+          data.address.road ||
+          data.address.suburb ||
+          "Dropped Pin";
+      } catch (err) {
+        console.error("Reverse geocode failed", err);
+      }
+
+      onPick(lat, lng, locationName);
+    },
+  });
+  return null;
+}
+
 export default function TripPlanner() {
   const { tripId } = useParams();
   const [trip, setTrip] = useState(null);
@@ -134,6 +164,9 @@ export default function TripPlanner() {
   const [isMapMoving, setIsMapMoving] = useState(false);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingStopId, setEditingStopId] = useState(null);
+  const [isPickingOnMap, setIsPickingOnMap] = useState(false); // Picking State
+  const [inputMode, setInputMode] = useState("search"); // "search" or "picker"
+
   const [formData, setFormData] = useState({
     name: "",
     type: "main",
@@ -145,7 +178,6 @@ export default function TripPlanner() {
   });
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState([]);
-  const [isSearching, setIsSearching] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -220,6 +252,12 @@ export default function TripPlanner() {
     }
     return items;
   }, [activeDay, displayedStops, anchorStop, lastDayOfTrip]);
+
+  const handlePickOnMap = (lat, lng, name) => {
+    setFormData({ ...formData, lat, lng, name });
+    setIsPickingOnMap(false);
+    setIsFormOpen(true); // Re-open the form once location is set
+  };
 
   const handleOpenExternalRoute = () => {
     if (listItems.length < 2) return;
@@ -311,6 +349,52 @@ export default function TripPlanner() {
 
   return (
     <div className="planner-layout">
+      {isPickingOnMap && (
+        <div
+          style={{
+            position: "absolute",
+            top: 80,
+            left: 0,
+            right: 0,
+            zIndex: 2000,
+            display: "flex",
+            justifyContent: "center",
+          }}
+        >
+          <div
+            style={{
+              background: "#1a1a24",
+              color: "#fff",
+              padding: "12px 24px",
+              borderRadius: "40px",
+              fontSize: "14px",
+              fontWeight: "600",
+              boxShadow: "0 4px 15px rgba(0,0,0,0.3)",
+              display: "flex",
+              alignItems: "center",
+              gap: 10,
+            }}
+          >
+            <MousePointer2 size={16} /> Tap anywhere to set destination
+            <button
+              onClick={() => setIsPickingOnMap(false)}
+              style={{
+                background: "rgba(255,255,255,0.2)",
+                border: "none",
+                color: "#fff",
+                padding: "4px 8px",
+                borderRadius: "4px",
+                marginLeft: 10,
+                fontSize: "11px",
+                cursor: "pointer",
+              }}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
       <div className="map-half">
         <Link
           to="/"
@@ -342,6 +426,11 @@ export default function TripPlanner() {
             className="editorial-map-filter"
           />
           <MapUpdater mapStops={listItems} setIsMapMoving={setIsMapMoving} />
+          <MapClickHandler
+            isPicking={isPickingOnMap}
+            onPick={handlePickOnMap}
+          />
+
           {!isMapMoving &&
             listItems.slice(0, -1).map((cur, i) => {
               const nxt = listItems[i + 1];
@@ -517,32 +606,6 @@ export default function TripPlanner() {
                           </button>
                         </>
                       )}
-                      {stop.isReturn && (
-                        <button
-                          onClick={() => {
-                            setFormData({
-                              name: "",
-                              type: "main",
-                              icon: "bed",
-                              day: parseInt(activeDay),
-                              lat: "",
-                              lng: "",
-                              desc: "",
-                            });
-                            setEditingStopId(null);
-                            setIsFormOpen(true);
-                          }}
-                          style={{
-                            background: "transparent",
-                            border: "none",
-                            color: "#a0a0a0",
-                            cursor: "pointer",
-                            padding: 4,
-                          }}
-                        >
-                          <Edit2 size={16} />
-                        </button>
-                      )}
                     </div>
                   </div>
                 </div>
@@ -617,6 +680,7 @@ export default function TripPlanner() {
                   desc: "",
                 });
                 setEditingStopId(null);
+                setInputMode("search"); // Reset to search by default
                 setIsFormOpen(true);
               }}
             >
@@ -669,38 +733,119 @@ export default function TripPlanner() {
                   marginBottom: 24,
                   background: "#f8f7fa",
                   padding: 16,
-                  borderRadius: 8,
+                  borderRadius: 12,
                 }}
               >
-                <span className="label">1. Search location</span>
-                <div style={{ display: "flex", gap: 8 }}>
-                  <input
-                    className="input-field"
-                    style={{ marginBottom: 0 }}
-                    placeholder="Search..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                  />
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      setIsSearching(true);
-                      const res = await fetch(
-                        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchQuery)}`,
-                      );
-                      setSearchResults(await res.json());
-                      setIsSearching(false);
-                    }}
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    marginBottom: 12,
+                  }}
+                >
+                  <span className="label" style={{ marginBottom: 0 }}>
+                    1. Set Location
+                  </span>
+                  <div
                     style={{
-                      background: "#1a1a24",
-                      color: "#fff",
-                      padding: "0 16px",
-                      borderRadius: 8,
+                      display: "flex",
+                      background: "#eee",
+                      borderRadius: "8px",
+                      padding: "2px",
                     }}
                   >
-                    <Search size={18} />
-                  </button>
+                    <button
+                      type="button"
+                      onClick={() => setInputMode("search")}
+                      style={{
+                        border: "none",
+                        background:
+                          inputMode === "search" ? "#fff" : "transparent",
+                        padding: "4px 10px",
+                        borderRadius: "6px",
+                        fontSize: "11px",
+                        fontWeight: "600",
+                        cursor: "pointer",
+                      }}
+                    >
+                      Search
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setInputMode("picker")}
+                      style={{
+                        border: "none",
+                        background:
+                          inputMode === "picker" ? "#fff" : "transparent",
+                        padding: "4px 10px",
+                        borderRadius: "6px",
+                        fontSize: "11px",
+                        fontWeight: "600",
+                        cursor: "pointer",
+                      }}
+                    >
+                      Map Picker
+                    </button>
+                  </div>
                 </div>
+
+                {inputMode === "search" ? (
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <input
+                      className="input-field"
+                      style={{ marginBottom: 0 }}
+                      placeholder="Search..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                    />
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        const res = await fetch(
+                          `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchQuery)}`,
+                        );
+                        setSearchResults(await res.json());
+                      }}
+                      style={{
+                        background: "#1a1a24",
+                        color: "#fff",
+                        padding: "0 16px",
+                        borderRadius: 8,
+                      }}
+                    >
+                      <Search size={18} />
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsPickingOnMap(true);
+                      setIsFormOpen(false);
+                    }}
+                    style={{
+                      width: "100%",
+                      background: "#fff",
+                      border: "1px solid #ddd",
+                      padding: "12px",
+                      borderRadius: "8px",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: 10,
+                      fontSize: "14px",
+                      fontWeight: "500",
+                      cursor: "pointer",
+                    }}
+                  >
+                    <MousePointer2 size={16} />
+                    {formData.lat
+                      ? `${formData.lat.toFixed(4)}, ${formData.lng.toFixed(4)}`
+                      : "Select point on map"}
+                  </button>
+                )}
+
                 {searchResults.slice(0, 5).map((r) => (
                   <div
                     key={r.place_id}
@@ -725,6 +870,7 @@ export default function TripPlanner() {
                   </div>
                 ))}
               </div>
+
               <div style={{ marginBottom: 24 }}>
                 <span className="label">2. Activity Icon</span>
                 <div
@@ -766,6 +912,7 @@ export default function TripPlanner() {
                   ))}
                 </div>
               </div>
+
               <div style={{ marginBottom: 24 }}>
                 <span className="label">3. Mode</span>
                 <div style={{ display: "flex", gap: 12 }}>
@@ -787,7 +934,7 @@ export default function TripPlanner() {
                       gap: 10,
                     }}
                   >
-                    <Car size={20} color={COLOR_DRIVE} />{" "}
+                    <Car size={20} color={COLOR_DRIVE} />
                     <span style={{ fontSize: "14px", fontWeight: "500" }}>
                       Driving
                     </span>
@@ -813,45 +960,14 @@ export default function TripPlanner() {
                       gap: 10,
                     }}
                   >
-                    <Footprints size={20} color={COLOR_WALK} />{" "}
+                    <Footprints size={20} color={COLOR_WALK} />
                     <span style={{ fontSize: "14px", fontWeight: "500" }}>
                       Walking
                     </span>
                   </button>
                 </div>
-                {formData.lat && (
-                  <div
-                    style={{
-                      background: "#fdfff1",
-                      padding: "12px",
-                      borderRadius: "8px",
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 8,
-                      marginTop: 12,
-                    }}
-                  >
-                    <Info size={14} color="#1a1a24" />
-                    <span
-                      style={{
-                        fontSize: "13px",
-                        color: "#1a1a24",
-                        fontWeight: "500",
-                      }}
-                    >
-                      Est.{" "}
-                      {calculateRoughDuration(
-                        displayedStops.length > 0
-                          ? displayedStops[displayedStops.length - 1]
-                          : anchorStop,
-                        formData,
-                        formData.type,
-                      )}{" "}
-                      trip
-                    </span>
-                  </div>
-                )}
               </div>
+
               <div className="date-row">
                 <div style={{ flex: 1 }}>
                   <span className="label">Name</span>
