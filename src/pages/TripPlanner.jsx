@@ -45,7 +45,6 @@ const COLOR_WALK = "#bed67d";
 const COLOR_ACTIVITY = "#b7c39b";
 const COLOR_INFO_PANEL = "#fdfff1";
 
-// --- Instant Rough Estimation Logic ---
 const calculateRoughDuration = (start, end, mode) => {
   if (!start || !end || !start.lat || !end.lat) return null;
   const R = 6371;
@@ -60,9 +59,9 @@ const calculateRoughDuration = (start, end, mode) => {
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   const distance = R * c;
   const isWalk = mode === "attraction";
-  const windingFactor = isWalk ? 1.2 : 1.5;
-  const speedKmH = isWalk ? 4.5 : 40;
-  const mins = Math.round(((distance * windingFactor) / speedKmH) * 60);
+  const mins = Math.round(
+    ((distance * (isWalk ? 1.2 : 1.5)) / (isWalk ? 4.5 : 40)) * 60,
+  );
   if (mins < 1) return "1 min";
   if (mins < 60) return `${mins} min`;
   return `${Math.floor(mins / 60)}h ${mins % 60}m`;
@@ -106,11 +105,6 @@ const createCustomIcon = (iconId) => {
 
 function MapUpdater({ mapStops, setIsMapMoving }) {
   const map = useMap();
-  const stopsSignature = mapStops.map((s) => s.uniqueKey).join(",");
-  useMapEvents({
-    movestart: () => setIsMapMoving(true),
-    moveend: () => setIsMapMoving(false),
-  });
   useEffect(() => {
     if (mapStops.length > 0) {
       const bounds = L.latLngBounds(mapStops.map((s) => [s.lat, s.lng]));
@@ -121,18 +115,15 @@ function MapUpdater({ mapStops, setIsMapMoving }) {
         duration: 1.2,
       });
     }
-  }, [stopsSignature, map]);
+  }, [mapStops.length, map]);
   return null;
 }
 
-// --- NEW: Map Click Handler Component ---
 function MapClickHandler({ isPicking, onPick }) {
   useMapEvents({
     click: async (e) => {
       if (!isPicking) return;
       const { lat, lng } = e.latlng;
-
-      // Optional: Reverse Geocoding to get a name for the pinned spot
       let locationName = "Dropped Pin";
       try {
         const res = await fetch(
@@ -145,9 +136,8 @@ function MapClickHandler({ isPicking, onPick }) {
           data.address.suburb ||
           "Dropped Pin";
       } catch (err) {
-        console.error("Reverse geocode failed", err);
+        console.error(err);
       }
-
       onPick(lat, lng, locationName);
     },
   });
@@ -164,8 +154,7 @@ export default function TripPlanner() {
   const [isMapMoving, setIsMapMoving] = useState(false);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingStopId, setEditingStopId] = useState(null);
-  const [isPickingOnMap, setIsPickingOnMap] = useState(false); // Picking State
-  const [inputMode, setInputMode] = useState("search"); // "search" or "picker"
+  const [isPickingOnMap, setIsPickingOnMap] = useState(false);
 
   const [formData, setFormData] = useState({
     name: "",
@@ -183,10 +172,8 @@ export default function TripPlanner() {
     loadData();
   }, [tripId]);
   const loadData = async () => {
-    const t = await getTrip(tripId);
-    setTrip(t);
-    const s = await getStops(tripId);
-    setStops(s);
+    setTrip(await getTrip(tripId));
+    setStops(await getStops(tripId));
   };
 
   const sortedStops = useMemo(
@@ -230,25 +217,13 @@ export default function TripPlanner() {
         },
         ...items,
       ];
-    const isLastDay = Number(activeDay) === lastDayOfTrip;
-    if (items.length > 1 && anchorStop && !isLastDay) {
-      const lastItem = items[items.length - 1];
-      if (lastItem.id !== anchorStop.id) {
-        const dist = calculateDistanceRaw(
-          lastItem.lat,
-          lastItem.lng,
-          anchorStop.lat,
-          anchorStop.lng,
-        );
-        if (dist < 50) {
-          items.push({
-            ...anchorStop,
-            isAnchor: true,
-            isReturn: true,
-            uniqueKey: `anchor-end-${anchorStop.id}`,
-          });
-        }
-      }
+    if (items.length > 1 && anchorStop && Number(activeDay) !== lastDayOfTrip) {
+      items.push({
+        ...anchorStop,
+        isAnchor: true,
+        isReturn: true,
+        uniqueKey: `anchor-end-${anchorStop.id}`,
+      });
     }
     return items;
   }, [activeDay, displayedStops, anchorStop, lastDayOfTrip]);
@@ -256,7 +231,7 @@ export default function TripPlanner() {
   const handlePickOnMap = (lat, lng, name) => {
     setFormData({ ...formData, lat, lng, name });
     setIsPickingOnMap(false);
-    setIsFormOpen(true); // Re-open the form once location is set
+    setIsFormOpen(true);
   };
 
   const handleOpenExternalRoute = () => {
@@ -264,28 +239,21 @@ export default function TripPlanner() {
     const isIOS =
       /iPad|iPhone|iPod/.test(navigator.userAgent) ||
       (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
-    if (isIOS) {
-      const start = `${listItems[0].lat},${listItems[0].lng}`;
-      const destParts = listItems
-        .slice(1)
-        .map((s) => `${s.lat},${s.lng}`)
-        .join("+to:");
-      window.open(
-        `http://maps.apple.com/?saddr=${start}&daddr=${destParts}&dirflg=d`,
-        "_blank",
-      );
-    } else {
-      const origin = `${listItems[0].lat},${listItems[0].lng}`;
-      const destination = `${listItems[listItems.length - 1].lat},${listItems[listItems.length - 1].lng}`;
-      const waypoints = listItems
-        .slice(1, -1)
-        .map((s) => `${s.lat},${s.lng}`)
-        .join("|");
-      window.open(
-        `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${destination}&waypoints=${waypoints}&travelmode=driving`,
-        "_blank",
-      );
-    }
+    const origin = `${listItems[0].lat},${listItems[0].lng}`;
+    const destination = `${listItems[listItems.length - 1].lat},${listItems[listItems.length - 1].lng}`;
+    const waypoints = listItems
+      .slice(1, -1)
+      .map((s) => `${s.lat},${s.lng}`)
+      .join("|");
+    window.open(
+      isIOS
+        ? `http://maps.apple.com/?saddr=${origin}&daddr=${listItems
+            .slice(1)
+            .map((s) => `${s.lat},${s.lng}`)
+            .join("+to:")}&dirflg=d`
+        : `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${destination}&waypoints=${waypoints}&travelmode=driving`,
+      "_blank",
+    );
   };
 
   const handleMoveStop = async (stop, direction) => {
@@ -327,19 +295,12 @@ export default function TripPlanner() {
       const h = ((window.innerHeight - clientY) / window.innerHeight) * 100;
       if (h >= 15 && h <= 90) setSheetHeight(h);
     };
-    const handleEnd = () => setIsDragging(false);
     if (isDragging) {
       window.addEventListener("mousemove", handleMove);
-      window.addEventListener("mouseup", handleEnd);
+      window.addEventListener("mouseup", () => setIsDragging(false));
       window.addEventListener("touchmove", handleMove, { passive: false });
-      window.addEventListener("touchend", handleEnd);
+      window.addEventListener("touchend", () => setIsDragging(false));
     }
-    return () => {
-      window.removeEventListener("mousemove", handleMove);
-      window.removeEventListener("mouseup", handleEnd);
-      window.removeEventListener("touchmove", handleMove);
-      window.removeEventListener("touchend", handleEnd);
-    };
   }, [isDragging]);
 
   if (!trip) return null;
@@ -385,7 +346,6 @@ export default function TripPlanner() {
                 padding: "4px 8px",
                 borderRadius: "4px",
                 marginLeft: 10,
-                fontSize: "11px",
                 cursor: "pointer",
               }}
             >
@@ -430,7 +390,6 @@ export default function TripPlanner() {
             isPicking={isPickingOnMap}
             onPick={handlePickOnMap}
           />
-
           {!isMapMoving &&
             listItems.slice(0, -1).map((cur, i) => {
               const nxt = listItems[i + 1];
@@ -512,7 +471,6 @@ export default function TripPlanner() {
                   nextStop.isReturn ? stop.type : nextStop.type,
                 )
               : null;
-
             return (
               <React.Fragment key={stop.uniqueKey}>
                 {showDayHeader && (
@@ -556,60 +514,54 @@ export default function TripPlanner() {
                         </p>
                       )}
                     </div>
-                    <div style={{ display: "flex", gap: 4, marginLeft: 12 }}>
-                      {!stop.isAnchor && (
-                        <>
-                          {activeDay !== "Overview" && (
-                            <div
+                    {!stop.isAnchor && (
+                      <div style={{ display: "flex", gap: 4, marginLeft: 12 }}>
+                        {activeDay !== "Overview" && (
+                          <div
+                            style={{ display: "flex", flexDirection: "column" }}
+                          >
+                            <button
+                              onClick={() => handleMoveStop(stop, "up")}
                               style={{
-                                display: "flex",
-                                flexDirection: "column",
+                                background: "transparent",
+                                border: "none",
+                                color: "#a0a0a0",
                               }}
                             >
-                              <button
-                                onClick={() => handleMoveStop(stop, "up")}
-                                style={{
-                                  background: "transparent",
-                                  border: "none",
-                                  color: "#a0a0a0",
-                                }}
-                              >
-                                <ChevronUp size={16} />
-                              </button>
-                              <button
-                                onClick={() => handleMoveStop(stop, "down")}
-                                style={{
-                                  background: "transparent",
-                                  border: "none",
-                                  color: "#a0a0a0",
-                                }}
-                              >
-                                <ChevronDown size={16} />
-                              </button>
-                            </div>
-                          )}
-                          <button
-                            onClick={() => {
-                              setFormData({ ...stop });
-                              setEditingStopId(stop.id);
-                              setIsFormOpen(true);
-                            }}
-                            style={{
-                              background: "transparent",
-                              border: "none",
-                              color: "#a0a0a0",
-                              cursor: "pointer",
-                              padding: 4,
-                            }}
-                          >
-                            <Edit2 size={16} />
-                          </button>
-                        </>
-                      )}
-                    </div>
+                              <ChevronUp size={16} />
+                            </button>
+                            <button
+                              onClick={() => handleMoveStop(stop, "down")}
+                              style={{
+                                background: "transparent",
+                                border: "none",
+                                color: "#a0a0a0",
+                              }}
+                            >
+                              <ChevronDown size={16} />
+                            </button>
+                          </div>
+                        )}
+                        <button
+                          onClick={() => {
+                            setFormData({ ...stop });
+                            setEditingStopId(stop.id);
+                            setIsFormOpen(true);
+                          }}
+                          style={{
+                            background: "transparent",
+                            border: "none",
+                            color: "#a0a0a0",
+                            cursor: "pointer",
+                            padding: 4,
+                          }}
+                        >
+                          <Edit2 size={16} />
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </div>
-
                 {nextStop && activeDay !== "Overview" && (
                   <div style={{ paddingLeft: "11px", margin: "4px 0" }}>
                     <div
@@ -652,7 +604,6 @@ export default function TripPlanner() {
               </React.Fragment>
             );
           })}
-
           <div
             style={{
               display: "flex",
@@ -680,7 +631,6 @@ export default function TripPlanner() {
                   desc: "",
                 });
                 setEditingStopId(null);
-                setInputMode("search"); // Reset to search by default
                 setIsFormOpen(true);
               }}
             >
@@ -736,88 +686,33 @@ export default function TripPlanner() {
                   borderRadius: 12,
                 }}
               >
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    marginBottom: 12,
-                  }}
-                >
-                  <span className="label" style={{ marginBottom: 0 }}>
-                    1. Set Location
-                  </span>
-                  <div
+                <span className="label">1. Set Location</span>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <input
+                    className="input-field"
+                    style={{ marginBottom: 0, flex: 1 }}
+                    placeholder="Search name..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                  />
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      const res = await fetch(
+                        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchQuery)}`,
+                      );
+                      setSearchResults(await res.json());
+                    }}
                     style={{
-                      display: "flex",
-                      background: "#eee",
-                      borderRadius: "8px",
-                      padding: "2px",
+                      background: "#1a1a24",
+                      color: "#fff",
+                      padding: "0 12px",
+                      borderRadius: 8,
+                      cursor: "pointer",
                     }}
                   >
-                    <button
-                      type="button"
-                      onClick={() => setInputMode("search")}
-                      style={{
-                        border: "none",
-                        background:
-                          inputMode === "search" ? "#fff" : "transparent",
-                        padding: "4px 10px",
-                        borderRadius: "6px",
-                        fontSize: "11px",
-                        fontWeight: "600",
-                        cursor: "pointer",
-                      }}
-                    >
-                      Search
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setInputMode("picker")}
-                      style={{
-                        border: "none",
-                        background:
-                          inputMode === "picker" ? "#fff" : "transparent",
-                        padding: "4px 10px",
-                        borderRadius: "6px",
-                        fontSize: "11px",
-                        fontWeight: "600",
-                        cursor: "pointer",
-                      }}
-                    >
-                      Map Picker
-                    </button>
-                  </div>
-                </div>
-
-                {inputMode === "search" ? (
-                  <div style={{ display: "flex", gap: 8 }}>
-                    <input
-                      className="input-field"
-                      style={{ marginBottom: 0 }}
-                      placeholder="Search..."
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                    />
-                    <button
-                      type="button"
-                      onClick={async () => {
-                        const res = await fetch(
-                          `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchQuery)}`,
-                        );
-                        setSearchResults(await res.json());
-                      }}
-                      style={{
-                        background: "#1a1a24",
-                        color: "#fff",
-                        padding: "0 16px",
-                        borderRadius: 8,
-                      }}
-                    >
-                      <Search size={18} />
-                    </button>
-                  </div>
-                ) : (
+                    <Search size={18} />
+                  </button>
                   <button
                     type="button"
                     onClick={() => {
@@ -825,27 +720,17 @@ export default function TripPlanner() {
                       setIsFormOpen(false);
                     }}
                     style={{
-                      width: "100%",
                       background: "#fff",
                       border: "1px solid #ddd",
-                      padding: "12px",
-                      borderRadius: "8px",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      gap: 10,
-                      fontSize: "14px",
-                      fontWeight: "500",
+                      color: "#1a1a24",
+                      padding: "0 12px",
+                      borderRadius: 8,
                       cursor: "pointer",
                     }}
                   >
-                    <MousePointer2 size={16} />
-                    {formData.lat
-                      ? `${formData.lat.toFixed(4)}, ${formData.lng.toFixed(4)}`
-                      : "Select point on map"}
+                    <MousePointer2 size={18} />
                   </button>
-                )}
-
+                </div>
                 {searchResults.slice(0, 5).map((r) => (
                   <div
                     key={r.place_id}
@@ -912,7 +797,6 @@ export default function TripPlanner() {
                   ))}
                 </div>
               </div>
-
               <div style={{ marginBottom: 24 }}>
                 <span className="label">3. Mode</span>
                 <div style={{ display: "flex", gap: 12 }}>
@@ -967,7 +851,6 @@ export default function TripPlanner() {
                   </button>
                 </div>
               </div>
-
               <div className="date-row">
                 <div style={{ flex: 1 }}>
                   <span className="label">Name</span>
