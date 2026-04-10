@@ -1,111 +1,211 @@
-:root {
-  --text: #6b6375;
-  --text-h: #08060d;
-  --bg: #fff;
-  --border: #e5e4e7;
-  --code-bg: #f4f3ec;
-  --accent: #aa3bff;
-  --accent-bg: rgba(170, 59, 255, 0.1);
-  --accent-border: rgba(170, 59, 255, 0.5);
-  --social-bg: rgba(244, 243, 236, 0.5);
-  --shadow:
-    rgba(0, 0, 0, 0.1) 0 10px 15px -3px, rgba(0, 0, 0, 0.05) 0 4px 6px -2px;
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap');
 
-  --sans: system-ui, 'Segoe UI', Roboto, sans-serif;
-  --heading: system-ui, 'Segoe UI', Roboto, sans-serif;
-  --mono: ui-monospace, Consolas, monospace;
-
-  font: 18px/145% var(--sans);
-  letter-spacing: 0.18px;
-  color-scheme: light dark;
-  color: var(--text);
-  background: var(--bg);
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-
-  @media (max-width: 1024px) {
-    font-size: 16px;
-  }
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --text: #9ca3af;
-    --text-h: #f3f4f6;
-    --bg: #16171d;
-    --border: #2e303a;
-    --code-bg: #1f2028;
-    --accent: #c084fc;
-    --accent-bg: rgba(192, 132, 252, 0.15);
-    --accent-border: rgba(192, 132, 252, 0.5);
-    --social-bg: rgba(47, 48, 58, 0.5);
-    --shadow:
-      rgba(0, 0, 0, 0.4) 0 10px 15px -3px, rgba(0, 0, 0, 0.25) 0 4px 6px -2px;
-  }
-
-  #social .button-icon {
-    filter: invert(1) brightness(2);
-  }
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
 }
 
 body {
-  margin: 0;
+  font-family: 'Inter', -apple-system, sans-serif;
+  color: #1a1a24;
+  overscroll-behavior-y: none;
+  min-height: 100vh;
+  background: linear-gradient(145deg, #cdc2eb 0%, #bed67d 100%);
+  background-attachment: fixed;
 }
 
-#root {
-  width: 1126px;
-  max-width: 100%;
+.page-container {
+  padding: 40px 24px 100px 24px;
+  max-width: 500px;
   margin: 0 auto;
-  text-align: center;
-  border-inline: 1px solid var(--border);
-  min-height: 100svh;
+}
+
+.label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  font-weight: 600;
+  color: #5a5a66;
+  margin-bottom: 8px;
+  display: block;
+}
+
+/* Info Panel (Bottom Sheet) */
+.bottom-sheet {
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  background: #fdfff1; /* Cream */
+  border-radius: 24px 24px 0 0;
+  box-shadow: 0 -15px 40px rgba(0,0,0,0.12);
+  z-index: 10;
   display: flex;
   flex-direction: column;
-  box-sizing: border-box;
 }
 
-h1,
-h2 {
-  font-family: var(--heading);
+.sheet-header {
+  padding: 0 24px 20px 24px;
+  border-bottom: 1px solid rgba(0,0,0,0.05);
+}
+
+.sheet-handle-container {
+  width: 100%;
+  padding: 12px 0 16px 0;
+  display: flex;
+  justify-content: center;
+  cursor: grab;
+  touch-action: none;
+}
+
+.sheet-handle {
+  width: 40px;
+  height: 5px;
+  background: rgba(0,0,0,0.1);
+  border-radius: 10px;
+}
+
+/* Navigation Pills */
+.day-filters {
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  padding-bottom: 10px;
+  -webkit-overflow-scrolling: touch;
+}
+
+.day-pill {
+  padding: 8px 18px;
+  background: #1a1a24; 
+  border: 1px solid #1a1a24;
+  border-radius: 20px;
+  font-size: 13px;
   font-weight: 500;
-  color: var(--text-h);
+  white-space: nowrap;
+  cursor: pointer;
+  color: #fff;
+  transition: opacity 0.2s;
 }
 
-h1 {
-  font-size: 56px;
-  letter-spacing: -1.68px;
-  margin: 32px 0;
-  @media (max-width: 1024px) {
-    font-size: 36px;
-    margin: 20px 0;
-  }
-}
-h2 {
-  font-size: 24px;
-  line-height: 118%;
-  letter-spacing: -0.24px;
-  margin: 0 0 8px;
-  @media (max-width: 1024px) {
-    font-size: 20px;
-  }
-}
-p {
-  margin: 0;
+.day-pill:not(.active) {
+  opacity: 0.6;
 }
 
-code,
-.counter {
-  font-family: var(--mono);
-  display: inline-flex;
-  border-radius: 4px;
-  color: var(--text-h);
+/* Timeline */
+.timeline-container {
+  padding: 24px;
+  overflow-y: auto;
+  flex: 1;
 }
 
-code {
+.timeline-item {
+  position: relative;
+  padding-left: 35px;
+}
+
+.timeline-icon {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 26px;
+  height: 26px;
+  background: #b7c39b; /* Activity Olive */
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ffffff;
+  z-index: 2;
+}
+
+/* Travel Bridge Badge */
+.info-panel-badge {
+  background: #ffffff !important; 
+  border: 1px solid rgba(0,0,0,0.08) !important;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+  color: #1a1a24;
+}
+
+/* Primary Action Buttons */
+.btn-primary {
+  background: #1a1a24 !important;
+  color: #fff !important;
+  padding: 16px;
+  border: none;
+  border-radius: 12px; 
+  width: 100%;
   font-size: 15px;
-  line-height: 135%;
-  padding: 4px 8px;
-  background: var(--code-bg);
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+
+/* --- Map Layout Fixes --- */
+.planner-layout {
+  position: relative;
+  height: 100vh;
+  width: 100%;
+  overflow: hidden;
+}
+
+.map-half {
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  z-index: 1;
+}
+
+/* CRITICAL: Leaflet container MUST have height */
+.map-half .leaflet-container {
+  height: 100% !important;
+  width: 100% !important;
+}
+
+.editorial-map-filter {
+  filter: grayscale(100%) contrast(1.1) brightness(1.05);
+  mix-blend-mode: multiply; 
+  opacity: 0.8; 
+}
+
+.custom-map-marker {
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+  border: 2px solid #fff;
+}
+
+.modal-content {
+  background: #fdfcfd; 
+  width: 100%;
+  padding: 30px 24px 50px 24px;
+  border-radius: 24px 24px 0 0; 
+  box-shadow: 0 -10px 40px rgba(0,0,0,0.1);
+}
+
+.input-field {
+  width: 100%;
+  padding: 14px 16px;
+  margin-bottom: 24px;
+  background: #fff;
+  border: 1px solid rgba(0,0,0,0.1);
+  border-radius: 10px; 
+  font-size: 15px;
+  outline: none;
+}
+
+.day-separator {
+  font-size: 11px;
+  text-transform: uppercase;
+  font-weight: 700;
+  color: #1a1a24;
+  background: #fff;
+  padding: 6px 14px;
+  border-radius: 20px;
+  display: inline-block;
+  margin: 10px 0 24px 0;
+  letter-spacing: 0.8px;
+  border: 1px solid rgba(0,0,0,0.1);
 }
