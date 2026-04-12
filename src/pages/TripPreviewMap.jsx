@@ -1,149 +1,102 @@
 import React, { useState, useEffect, useMemo } from "react";
-import { renderToString } from "react-dom/server";
 import {
-  MapContainer,
-  TileLayer,
-  Marker,
-  Polyline,
+  APIProvider,
+  Map,
+  AdvancedMarker,
   useMap,
-} from "react-leaflet";
-import L from "leaflet";
-import { Bed } from "lucide-react";
+  useMapsLibrary,
+} from "@vis.gl/react-google-maps";
 import { getTripHotels } from "../firebase";
-import "leaflet/dist/leaflet.css";
 
-// Reuse the Bed Icon styling with custom text
-const createHotelPreviewIcon = (text) => {
-  const iconHtml = renderToString(
-    <div style={{ position: "relative", width: "24px", height: "24px" }}>
-      <div
-        style={{
-          width: "24px",
-          height: "24px",
-          background: "#1a1a24",
-          borderRadius: "50%",
-          border: "2px solid #fff",
-          boxShadow: "0 2px 6px rgba(0,0,0,0.15)",
-          color: "#fff",
-          fontSize: "11px",
-          fontWeight: "700",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          zIndex: 2,
-          position: "relative",
-        }}
-      >
-        {text}
-      </div>
-      <Bed
-        style={{
-          position: "absolute",
-          left: "-1px",
-          bottom: "-4px",
-          opacity: 0.15,
-          zIndex: 1,
-        }}
-        size={16}
-      />
-    </div>,
-  );
-  return L.divIcon({
-    className: "custom-map-marker",
-    html: `<div style="display:flex; align-items:center; justify-content:center; width:100%; height:100%;">${iconHtml}</div>`,
-    iconSize: [28, 28],
-    iconAnchor: [14, 14],
-  });
-};
-
-function MapUpdater({ hotels }) {
+// Native Google Polyline Renderer (Vis.gl doesn't use a <Polyline> component, we draw it directly)
+const PreviewRoute = ({ path }) => {
   const map = useMap();
+  const mapsLib = useMapsLibrary("maps");
+  const [polyline, setPolyline] = useState(null);
+
+  // Initialize the line once
   useEffect(() => {
-    if (hotels.length > 0) {
-      const bounds = L.latLngBounds(hotels.map((h) => [h.lat, h.lng]));
-      map.flyToBounds(bounds, {
-        padding: [10, 10],
-        maxZoom: 8,
-        animate: true,
-        duration: 1.0,
-      });
-    }
-  }, [hotels, map]);
+    if (!map || !mapsLib) return;
+    const line = new mapsLib.Polyline({
+      map,
+      strokeColor: "#cdc2eb", // Theme Lavender
+      strokeWeight: 3,
+      strokeOpacity: 0.8,
+    });
+    setPolyline(line);
+    return () => line.setMap(null);
+  }, [map, mapsLib]);
+
+  // Update the path coordinates
+  useEffect(() => {
+    if (polyline) polyline.setPath(path);
+  }, [polyline, path]);
+
+  // Auto-fit the camera to the preview route
+  useEffect(() => {
+    if (!map || path.length === 0) return;
+    const bounds = new window.google.maps.LatLngBounds();
+    path.forEach((coord) => bounds.extend(coord));
+    map.fitBounds(bounds, { padding: 20 });
+  }, [map, mapsLib, path]);
+
   return null;
-}
+};
 
 export default function TripPreviewMap({ tripId }) {
   const [hotels, setHotels] = useState([]);
-  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const loadHotels = async () => {
-      const fetchedHotels = await getTripHotels(tripId);
-      setHotels(fetchedHotels);
-      setIsLoading(false);
-    };
-    loadHotels();
+    if (!tripId) return;
+    getTripHotels(tripId).then(setHotels);
   }, [tripId]);
 
-  const simplifiedPath = useMemo(() => {
-    if (hotels.length < 2) return [];
-    return hotels.map((h) => [h.lat, h.lng]);
-  }, [hotels]);
+  // Convert hotel data to exact {lat, lng} objects
+  const path = useMemo(
+    () => hotels.map((h) => ({ lat: h.lat, lng: h.lng })),
+    [hotels],
+  );
 
-  if (isLoading)
-    return (
-      <div
-        className="map-preview-container"
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          background: "#f5f5f7",
-        }}
-      ></div>
-    );
-
-  // Default center for preview if no route data
-  const center =
-    hotels.length > 0 ? [hotels[0].lat, hotels[0].lng] : [41.3275, 19.8187];
+  // Show your CSS placeholder while data fetches
+  if (!tripId || hotels.length === 0) {
+    return <div className="map-preview-placeholder" />;
+  }
 
   return (
     <div className="map-preview-container">
-      <MapContainer
-        center={center}
-        zoom={5} // default zoom
-        zoomControl={false}
-        dragging={false}
-        scrollWheelZoom={false}
-        doubleClickZoom={false}
-        touchZoom={false}
-        style={{ height: "100%", width: "100%", zIndex: 1 }}
-      >
-        <TileLayer
-          url="https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}"
-          attribution="&copy; Esri, HERE, Garmin, FAO, NOAA, USGS"
-          className="editorial-map-filter"
-        />
-        <MapUpdater hotels={hotels} />
+      <APIProvider apiKey={import.meta.env.VITE_GOOGLE_MAPS_API_KEY}>
+        <Map
+          defaultCenter={path[0] || { lat: 41.3275, lng: 19.8187 }}
+          defaultZoom={6}
+          mapId="PREVIEW_MAP_ID" // Required by Google for AdvancedMarkers
+          disableDefaultUI={true}
+          gestureHandling="none" // Completely locks the map so it acts like a static image
+          keyboardShortcuts={false}
+          style={{ width: "100%", height: "100%" }}
+        >
+          {/* Draw the Route Trail */}
+          <PreviewRoute path={path} />
 
-        {simplifiedPath.length > 0 && (
-          <Polyline
-            positions={simplifiedPath}
-            color="#646473" // Dashed gray like overview
-            weight={2}
-            dashArray="6, 8"
-            opacity={0.6}
-          />
-        )}
-
-        {hotels.map((hotel) => (
-          <Marker
-            key={hotel.id}
-            position={[hotel.lat, hotel.lng]}
-            icon={createHotelPreviewIcon(hotel.name.charAt(0))}
-          />
-        ))}
-      </MapContainer>
+          {/* Minimalist HTML Dots (No more ugly SVGs!) */}
+          {path.map((coord, idx) => {
+            const isEnd = idx === 0 || idx === path.length - 1;
+            return (
+              <AdvancedMarker key={idx} position={coord}>
+                <div
+                  style={{
+                    width: isEnd ? 12 : 8,
+                    height: isEnd ? 12 : 8,
+                    backgroundColor: "#1a1a24",
+                    borderRadius: "50%",
+                    border: "2px solid #ffffff",
+                    boxShadow: "0 2px 4px rgba(0,0,0,0.2)",
+                  }}
+                />
+              </AdvancedMarker>
+            );
+          })}
+        </Map>
+      </APIProvider>
     </div>
   );
 }

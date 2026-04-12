@@ -6,7 +6,6 @@ import { ArrowRight, Plus } from "lucide-react";
 import { getTrips, createTrip } from "../firebase";
 import TripPreviewMap from "./TripPreviewMap"; // New dynamic component
 
-import "leaflet/dist/leaflet.css";
 import "react-datepicker/dist/react-datepicker.css";
 
 export default function LandingPage() {

@@ -109,24 +109,11 @@ body {
   overflow: hidden;
 }
 
+/* Google Maps Container Fix */
 .map-half {
   position: absolute;
   top: 0; left: 0; right: 0; bottom: 0;
   z-index: 1;
-}
-
-/* Leaflet height fix */
-.map-half .leaflet-container,
-.map-preview-container .leaflet-container {
-  height: 100% !important;
-  width: 100% !important;
-  background: #f8f9fa;
-}
-
-.editorial-map-filter {
-  filter: grayscale(100%) contrast(1.1) brightness(1.05);
-  mix-blend-mode: multiply; 
-  opacity: 0.8; 
 }
 
 /* --- Planner Bottom Sheet --- */
@@ -215,6 +202,7 @@ body {
 .timeline-item {
   position: relative;
   padding-left: 35px;
+  margin-bottom: 24px; /* Added slight margin for spacing without polyline */
 }
 
 .timeline-icon {
@@ -244,14 +232,6 @@ body {
   margin: 10px 0 24px 0;
   letter-spacing: 0.8px;
   border: 1px solid rgba(0,0,0,0.1);
-}
-
-/* Travel Bridge Badges */
-.info-panel-badge {
-  background: #ffffff !important; 
-  border: 1px solid rgba(0,0,0,0.08) !important;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.04);
-  color: #1a1a24;
 }
 
 /* --- Form Modals --- */
@@ -290,20 +270,28 @@ body {
   gap: 12px;
 }
 
-/* --- Map Markers & Paths --- */
-.custom-map-marker {
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.2);
-  border: 2px solid #fff;
+/* Ensure Google Autocomplete Dropdown sits above your modal */
+.pac-container {
+  z-index: 10000 !important;
+  border-radius: 8px;
+  border: 1px solid #eee;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+  font-family: 'Inter', sans-serif;
+  padding: 8px 0;
 }
 
-/* Fix for map line consistency */
-.leaflet-zoom-animated path,
-.leaflet-container svg path,
-.leaflet-overlay-pane svg path {
-  vector-effect: non-scaling-stroke !important;
-  transition: none !important;
+.pac-item {
+  padding: 10px 16px;
+  font-size: 14px;
+  color: #1a1a24;
+  cursor: pointer;
+}
+
+.pac-item:hover {
+  background-color: #f8f9fa;
+}
+
+.pac-item-query {
+  font-weight: 600;
+  color: #1a1a24;
 }
