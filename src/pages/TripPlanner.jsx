@@ -338,7 +338,6 @@ export default function TripPlanner() {
   const [draggedStopId, setDraggedStopId] = useState(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
 
-  // --- AUTOMATIC THEME LOGIC ---
   const [theme, setTheme] = useState(() => {
     const saved = localStorage.getItem("theme");
     if (saved) return saved;
@@ -441,6 +440,45 @@ export default function TripPlanner() {
   );
   const totalDays = uniqueDays.length > 0 ? Math.max(...uniqueDays) : 1;
 
+  // RE-ADDED: Helper function for processing selections (handles smart suggesting)
+  const processPlaceSelection = (lat, lng, name) => {
+    let suggestedDay = formData.day,
+      suggestionText = "";
+    if (activeDay === "Overview" && stops.length > 0) {
+      let minDetour = Infinity,
+        bestDay = 1;
+      const uDays = [...new Set(stops.map((s) => Number(s.day)))].sort(
+        (a, b) => a - b,
+      );
+
+      uDays.forEach((d) => {
+        const dStops = stops
+          .filter((s) => s.day === d)
+          .sort((a, b) => a.order - b.order);
+        for (let i = 0; i < dStops.length - 1; i++) {
+          const det =
+            calculateDistance(dStops[i], { lat, lng }) +
+            calculateDistance({ lat, lng }, dStops[i + 1]) -
+            calculateDistance(dStops[i], dStops[i + 1]);
+          if (det < minDetour) {
+            minDetour = det;
+            bestDay = d;
+          }
+        }
+      });
+      suggestedDay = bestDay;
+      suggestionText = `✨ the allknowing horse suggests day ${bestDay}`;
+    }
+    setFormData((p) => ({
+      ...p,
+      name,
+      lat,
+      lng,
+      day: suggestedDay,
+      suggestionText,
+    }));
+  };
+
   const handleMapClick = async (e) => {
     if (!isPickingOnMap || !e.detail.latLng) return;
     const { lat, lng } = e.detail.latLng;
@@ -457,40 +495,6 @@ export default function TripPlanner() {
     processPlaceSelection(lat, lng, name);
     setIsPickingOnMap(false);
     setIsFormOpen(true);
-  };
-
-  const processPlaceSelection = (lat, lng, name) => {
-    let sDay = formData.day,
-      sText = "";
-    if (activeDay === "Overview" && stops.length > 0) {
-      let minD = Infinity,
-        bDay = 1;
-      uniqueDays.forEach((d) => {
-        const dStops = stops
-          .filter((s) => s.day === d)
-          .sort((a, b) => a.order - b.order);
-        for (let i = 0; i < dStops.length - 1; i++) {
-          const det =
-            calculateDistance(dStops[i], { lat, lng }) +
-            calculateDistance({ lat, lng }, dStops[i + 1]) -
-            calculateDistance(dStops[i], dStops[i + 1]);
-          if (det < minD) {
-            minD = det;
-            bDay = d;
-          }
-        }
-      });
-      sDay = bDay;
-      sText = `✨ Smart assigned to Day ${bDay}`;
-    }
-    setFormData((p) => ({
-      ...p,
-      name,
-      lat,
-      lng,
-      day: sDay,
-      suggestionText: sText,
-    }));
   };
 
   const handleSaveStop = async (e) => {
@@ -604,7 +608,6 @@ export default function TripPlanner() {
         </div>
       )}
 
-      {/* APIProvider reset key ensures Map tiles refresh style on theme toggle */}
       <APIProvider
         apiKey={import.meta.env.VITE_GOOGLE_MAPS_API_KEY}
         version="weekly"
@@ -706,8 +709,8 @@ export default function TripPlanner() {
               ))}
             </div>
           </div>
+
           <div className="timeline-container">
-            {/* STICKY TOP BUTTON: Only visible in Overview */}
             {activeDay === "Overview" && (
               <div className="sticky-add-wrapper">
                 <button
@@ -733,7 +736,6 @@ export default function TripPlanner() {
               </div>
             )}
 
-            {/* DAY HEADER: Only visible in specific Day views */}
             {activeDay !== "Overview" && trip.startDate && (
               <div className="day-header-container">
                 <div style={{ display: "flex", alignItems: "center" }}>
@@ -757,76 +759,75 @@ export default function TripPlanner() {
               </div>
             )}
 
-            {listItems.map((stop, idx) => {
-              const showHeader =
+            {listItems.map((s, idx) => {
+              const showH =
                 activeDay === "Overview" &&
-                (idx === 0 || listItems[idx - 1].day !== stop.day);
-              const next = listItems[idx + 1];
-              const isWalk = next?.type === "attraction";
+                (idx === 0 || listItems[idx - 1].day !== s.day);
+              const next = listItems[idx + 1],
+                isW = next?.type === "attraction";
               const dur =
-                !isWalk && routeLegs[idx]
+                !isW && routeLegs[idx]
                   ? routeLegs[idx]
-                  : calculateRoughDuration(stop, next, next?.type);
-
+                  : calculateRoughDuration(s, next, next?.type);
               return (
-                <React.Fragment key={stop.uniqueKey}>
-                  {showHeader && (
+                <React.Fragment key={s.uniqueKey}>
+                  {showH && (
                     <div className="day-separator">
-                      Day {stop.day}{" "}
-                      <span>• {getDateForDayString(stop.day)}</span>
+                      Day {s.day} <span>• {getDateForDayString(s.day)}</span>
                     </div>
                   )}
                   <div
                     className="timeline-item"
-                    draggable={activeDay !== "Overview" && !stop.isAnchor}
-                    onDragStart={(e) => handleDragStart(e, stop.id)}
+                    draggable={activeDay !== "Overview" && !s.isAnchor}
+                    onDragStart={(e) => handleDragStart(e, s.id)}
                     onDragOver={(e) => e.preventDefault()}
-                    onDrop={(e) => handleDrop(e, stop.id)}
-                    style={{ opacity: draggedStopId === stop.id ? 0.4 : 1 }}
+                    onDrop={(e) => handleDrop(e, s.id)}
+                    style={{
+                      opacity: draggedStopId === s.id ? 0.4 : 1,
+                      transition: "opacity 0.2s",
+                    }}
                   >
                     <div
                       className="timeline-icon"
                       style={{
-                        background: stop.isAnchor
+                        background: s.isAnchor
                           ? "var(--text-main)"
-                          : getPistachio(stop.day, totalDays),
-                        color: stop.isAnchor ? "var(--bg-main)" : "#1a1a24",
+                          : getPistachio(s.day, totalDays),
+                        color: s.isAnchor ? "var(--bg-main)" : "#1a1a24",
                       }}
                     >
-                      {renderIconById(stop.icon, 14)}
+                      {renderIconById(s.icon, 14)}
                     </div>
                     <div className="timeline-content">
                       <div style={{ flex: 1 }}>
                         <h3 className="timeline-title">
-                          {stop.isAnchor ? `Start: ${stop.name}` : stop.name}
+                          {s.isAnchor ? `Start: ${s.name}` : s.name}
                         </h3>
-                        {stop.desc && (
-                          <p className="timeline-desc">{stop.desc}</p>
-                        )}
+                        {s.desc && <p className="timeline-desc">{s.desc}</p>}
                         <div className="timeline-action-row">
                           <button
                             className="btn-action-small btn-map"
-                            onClick={() => openMapsPoint(stop.lat, stop.lng)}
+                            onClick={() => openMapsPoint(s.lat, s.lng)}
                           >
                             <Search size={12} /> Map
                           </button>
-                          {stop.link && (
+                          {s.link && (
                             <button
                               className="btn-action-small btn-link"
-                              onClick={() => window.open(stop.link, "_blank")}
+                              onClick={() => window.open(s.link, "_blank")}
                             >
-                              <LinkIcon size={12} /> {formatLinkText(stop.link)}
+                              <LinkIcon size={12} /> {formatLinkText(s.link)}
                             </button>
                           )}
                         </div>
                       </div>
-                      {!stop.isAnchor && (
+                      {!s.isAnchor && (
                         <div className="timeline-controls">
                           <button
                             className="btn-icon"
                             onClick={() => {
-                              setFormData({ ...stop, suggestionText: "" });
-                              setEditingStopId(stop.id);
+                              setFormData({ ...s, suggestionText: "" });
+                              setEditingStopId(s.id);
                               setIsFormOpen(true);
                             }}
                           >
@@ -846,26 +847,22 @@ export default function TripPlanner() {
                       <div
                         className="duration-bridge-line"
                         style={{
-                          borderLeft: `2px dashed ${
-                            isWalk
-                              ? COLOR_WALK
-                              : getLavender(stop.day, totalDays)
-                          }`,
+                          borderLeft: `2px dashed ${isW ? COLOR_WALK : getLavender(s.day, totalDays)}`,
                         }}
                       >
                         <button
-                          onClick={() => openMapsRoute(stop, next, next.type)}
+                          onClick={() => openMapsRoute(s, next, next.type)}
                           className="info-panel-badge"
                         >
-                          {isWalk ? (
+                          {isW ? (
                             <Footprints size={12} color={COLOR_WALK} />
                           ) : (
                             <Car
                               size={12}
-                              color={getLavender(stop.day, totalDays)}
+                              color={getLavender(s.day, totalDays)}
                             />
                           )}
-                          <span>{dur}</span>
+                          <span>{dur}</span>{" "}
                           <ExternalLink size={10} style={{ opacity: 0.3 }} />
                         </button>
                       </div>
@@ -875,7 +872,6 @@ export default function TripPlanner() {
               );
             })}
 
-            {/* BOTTOM BUTTON: Only visible in specific Day views */}
             {activeDay !== "Overview" && (
               <div style={{ marginTop: "10px", paddingBottom: "40px" }}>
                 <button
@@ -930,12 +926,11 @@ export default function TripPlanner() {
                     <PlaceAutocomplete
                       onPlaceSelect={(p) => {
                         if (p.geometry)
-                          setFormData((f) => ({
-                            ...f,
-                            name: p.name,
-                            lat: p.geometry.location.lat(),
-                            lng: p.geometry.location.lng(),
-                          }));
+                          processPlaceSelection(
+                            p.geometry.location.lat(),
+                            p.geometry.location.lng(),
+                            p.name,
+                          );
                       }}
                     />
                     <button
@@ -973,7 +968,7 @@ export default function TripPlanner() {
                   )}
                 </div>
                 <div className="form-group">
-                  <span className="label">2. Booking / Info Link</span>
+                  <span className="label">2. Link</span>
                   <input
                     className="input-field"
                     placeholder="https://..."
