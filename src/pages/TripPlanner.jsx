@@ -92,7 +92,7 @@ const openMapsRoute = (start, end, mode) => {
   const travelmode = mode === "attraction" ? "walking" : "driving";
   const url = isIOS
     ? `http://maps.apple.com/?saddr=${start.lat},${start.lng}&daddr=${end.lat},${end.lng}&dirflg=${mode === "attraction" ? "w" : "d"}`
-    : `https://www.google.com/maps/dir/?api=1&origin=${start.lat},${start.lng}&destination=${end.lat},${end.lng}&travelmode=${travelmode}`;
+    : `https://www.google.com/maps/dir/?api=1&origin=$${start.lat},${start.lng}&destination=${end.lat},${end.lng}&travelmode=${travelmode}`;
   window.open(url, "_blank");
 };
 
@@ -109,7 +109,6 @@ const calculateDistance = (start, end) => {
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 };
 
-// Only used as a fallback for the Overview mode now
 const calculateRoughDuration = (start, end, mode) => {
   const distance = calculateDistance(start, end);
   if (distance === 0) return null;
@@ -195,6 +194,27 @@ function WeatherWidget({ lat, lng, dateString }) {
   );
 }
 
+function PlaceAutocomplete({ onPlaceSelect }) {
+  const inputRef = useRef(null);
+  const placesLib = useMapsLibrary("places");
+  useEffect(() => {
+    if (!placesLib || !inputRef.current) return;
+    const auto = new placesLib.Autocomplete(inputRef.current, {
+      fields: ["geometry", "name", "formatted_address"],
+    });
+    auto.addListener("place_changed", () => onPlaceSelect(auto.getPlace()));
+  }, [placesLib, onPlaceSelect]);
+  return (
+    <input
+      ref={inputRef}
+      type="text"
+      className="input-field"
+      style={{ marginBottom: 0, flex: 1 }}
+      placeholder="Search landmarks..."
+    />
+  );
+}
+
 const defaultCenter = { lat: 41.3275, lng: 19.8187 };
 
 function MapRouteRenderer({
@@ -206,7 +226,7 @@ function MapRouteRenderer({
   const map = useMap();
   const routesLib = useMapsLibrary("routes");
   const mapsLib = useMapsLibrary("maps");
-  const activePolylinesRef = useRef([]); // Changed to Array to hold multiple segments
+  const activePolylinesRef = useRef([]);
   const overviewPolylinesRef = useRef([]);
 
   useEffect(() => {
@@ -220,14 +240,12 @@ function MapRouteRenderer({
   useEffect(() => {
     if (!routesLib || !mapsLib || !map) return;
 
-    // Clear everything before drawing
     overviewPolylinesRef.current.forEach((p) => p.setMap(null));
     overviewPolylinesRef.current = [];
     activePolylinesRef.current.forEach((p) => p.setMap(null));
     activePolylinesRef.current = [];
     onLegsCalculated([]);
 
-    // 1. Overview Mode Logic
     if (activeDay === "Overview" || listItems.length < 2) {
       if (activeDay === "Overview" && listItems.length > 1) {
         const days = [...new Set(listItems.map((s) => s.day))];
@@ -257,7 +275,6 @@ function MapRouteRenderer({
       return;
     }
 
-    // 2. Day View Mode Logic: FETCH EXACT ROUTES SEGMENT BY SEGMENT
     const ds = new routesLib.DirectionsService();
     const promises = [];
 
@@ -292,15 +309,10 @@ function MapRouteRenderer({
         if (result && result.res.routes[0]) {
           const route = result.res.routes[0];
           const leg = route.legs[0];
-
-          // GRAB EXACT GOOGLE DURATION TEXT
           newLegs[result.index] = leg.duration.text;
-
-          // Extract path
           const path = [];
           leg.steps.forEach((step) => step.path.forEach((pt) => path.push(pt)));
 
-          // Style based on mode
           const color =
             result.mode === routesLib.TravelMode.WALKING
               ? COLOR_WALK
@@ -315,7 +327,6 @@ function MapRouteRenderer({
             strokeWeight: 5,
           });
 
-          // Make walking path dashed!
           if (result.mode === routesLib.TravelMode.WALKING) {
             line.setOptions({
               icons: [
@@ -354,27 +365,6 @@ function MapRouteRenderer({
     });
   }, [map, listItems]);
   return null;
-}
-
-function PlaceAutocomplete({ onPlaceSelect }) {
-  const inputRef = useRef(null);
-  const placesLib = useMapsLibrary("places");
-  useEffect(() => {
-    if (!placesLib || !inputRef.current) return;
-    const auto = new placesLib.Autocomplete(inputRef.current, {
-      fields: ["geometry", "name", "formatted_address"],
-    });
-    auto.addListener("place_changed", () => onPlaceSelect(auto.getPlace()));
-  }, [placesLib, onPlaceSelect]);
-  return (
-    <input
-      ref={inputRef}
-      type="text"
-      className="input-field"
-      style={{ marginBottom: 0, flex: 1 }}
-      placeholder="Search landmarks..."
-    />
-  );
 }
 
 export default function TripPlanner() {
@@ -422,6 +412,7 @@ export default function TripPlanner() {
   useEffect(() => {
     loadData();
   }, [tripId]);
+
   const loadData = async () => {
     setTrip(await getTrip(tripId));
     setStops(await getStops(tripId));
@@ -434,6 +425,7 @@ export default function TripPlanner() {
       ),
     [],
   );
+
   const getDateForDayRaw = useCallback(
     (dNum) => {
       if (!trip?.startDate) return null;
@@ -443,6 +435,7 @@ export default function TripPlanner() {
     },
     [trip],
   );
+
   const getDateForDayString = useCallback(
     (dNum) => {
       const d = getDateForDayRaw(dNum);
@@ -464,6 +457,7 @@ export default function TripPlanner() {
       ),
     [stops],
   );
+
   const displayedStops = useMemo(
     () =>
       activeDay === "Overview"
@@ -495,16 +489,14 @@ export default function TripPlanner() {
   const uniqueDays = [...new Set(stops.map((s) => Number(s.day)))].sort(
     (a, b) => a - b,
   );
+
   const totalDays = uniqueDays.length > 0 ? Math.max(...uniqueDays) : 1;
 
   const filteredSuggestions = useMemo(() => {
-    // 1. FILTER OUT STOPS ALREADY IN THE ITINERARY
-    // We check if any existing stop has the same name as the suggestion
     const availableSuggestions = CURATED_SUGGESTIONS.filter(
       (suggestion) => !stops.some((stop) => stop.name === suggestion.name),
     );
 
-    // 2. If in Overview mode or we have no stops, show all AVAILABLE suggestions
     if (activeDay === "Overview" || stops.length === 0)
       return availableSuggestions;
 
@@ -525,12 +517,10 @@ export default function TripPlanner() {
         if (dStops.length === 1) {
           dayMin = calculateDistance(dStops[0], suggestion);
         } else {
-          // Test endpoints
           dayMin = Math.min(
             calculateDistance(suggestion, dStops[0]),
             calculateDistance(dStops[dStops.length - 1], suggestion),
           );
-          // Test between existing stops
           for (let i = 0; i < dStops.length - 1; i++) {
             const det =
               calculateDistance(dStops[i], suggestion) +
@@ -546,8 +536,6 @@ export default function TripPlanner() {
         }
       });
 
-      // Show it if the algorithm would auto-assign it to this day,
-      // OR if it happens to be physically less than 20km from any stop on this day.
       const dayStops = stops.filter((s) => s.day === targetDay);
       const minDistanceToCurrentDay =
         dayStops.length > 0
@@ -561,6 +549,7 @@ export default function TripPlanner() {
   const processPlaceSelection = (lat, lng, name) => {
     let suggestedDay = formData.day,
       suggestionText = "";
+
     if (activeDay === "Overview" && stops.length > 0) {
       let minD = Infinity,
         bDay = 1;
@@ -584,8 +573,9 @@ export default function TripPlanner() {
         }
       });
       suggestedDay = bDay;
-      suggestionText = `✨ the allknowing horse suggests day ${bDay}`;
+      suggestionText = `✨ the allknowing horse auto-assigned to optimal route on Day ${bDay}`;
     }
+
     setFormData((p) => ({
       ...p,
       name,
@@ -623,17 +613,64 @@ export default function TripPlanner() {
       day: parseInt(formData.day),
     };
     delete payload.suggestionText;
-    if (!editingStopId)
-      payload.order = stops.filter((s) => s.day === payload.day).length;
-    editingStopId
-      ? await updateStop(tripId, editingStopId, payload)
-      : await addStop(tripId, payload);
+
+    if (!editingStopId) {
+      const dayStops = stops
+        .filter((s) => s.day === payload.day)
+        .sort((a, b) => a.order - b.order);
+
+      let bestIdx = dayStops.length;
+
+      if (dayStops.length > 0) {
+        let minDetour = Infinity;
+
+        const distFirst = calculateDistance(payload, dayStops[0]);
+        if (distFirst < minDetour) {
+          minDetour = distFirst;
+          bestIdx = 0;
+        }
+
+        for (let i = 0; i < dayStops.length - 1; i++) {
+          const det =
+            calculateDistance(dayStops[i], payload) +
+            calculateDistance(payload, dayStops[i + 1]) -
+            calculateDistance(dayStops[i], dayStops[i + 1]);
+          if (det < minDetour) {
+            minDetour = det;
+            bestIdx = i + 1;
+          }
+        }
+
+        const distLast = calculateDistance(
+          dayStops[dayStops.length - 1],
+          payload,
+        );
+        if (distLast < minDetour) {
+          minDetour = distLast;
+          bestIdx = dayStops.length;
+        }
+
+        const updates = [];
+        for (let i = bestIdx; i < dayStops.length; i++) {
+          updates.push(updateStop(tripId, dayStops[i].id, { order: i + 1 }));
+        }
+        await Promise.all(updates);
+      }
+
+      payload.order = bestIdx;
+      await addStop(tripId, payload);
+    } else {
+      await updateStop(tripId, editingStopId, payload);
+    }
+
     setIsFormOpen(false);
     loadData();
   };
 
   const handleAddSuggestion = async (suggestion) => {
     let targetDay = activeDay === "Overview" ? 1 : parseInt(activeDay);
+    let suggestionText = "";
+
     if (activeDay === "Overview" && stops.length > 0) {
       let minDetourDay = Infinity;
       uniqueDays.forEach((d) => {
@@ -653,71 +690,31 @@ export default function TripPlanner() {
           }
         }
       });
+      suggestionText = `✨ the allknowing horse auto-assigned to optimal route on Day ${targetDay}`;
     }
 
-    const dayStops = stops
-      .filter((s) => s.day === targetDay)
-      .sort((a, b) => a.order - b.order);
-    let bestIdx = dayStops.length;
-    let minDetour = Infinity;
-
-    if (dayStops.length > 0) {
-      const distFirst = calculateDistance(suggestion, dayStops[0]);
-      if (distFirst < minDetour) {
-        minDetour = distFirst;
-        bestIdx = 0;
-      }
-
-      for (let i = 0; i < dayStops.length - 1; i++) {
-        const det =
-          calculateDistance(dayStops[i], suggestion) +
-          calculateDistance(suggestion, dayStops[i + 1]) -
-          calculateDistance(dayStops[i], dayStops[i + 1]);
-        if (det < minDetour) {
-          minDetour = det;
-          bestIdx = i + 1;
-        }
-      }
-
-      const distLast = calculateDistance(
-        dayStops[dayStops.length - 1],
-        suggestion,
-      );
-      if (distLast < minDetour) {
-        minDetour = distLast;
-        bestIdx = dayStops.length;
-      }
-    } else {
-      bestIdx = 0;
-    }
-
-    const updates = [];
-    for (let i = bestIdx; i < dayStops.length; i++) {
-      updates.push(updateStop(tripId, dayStops[i].id, { order: i + 1 }));
-    }
-    await Promise.all(updates);
-
-    const payload = {
+    setFormData({
       name: suggestion.name,
       lat: suggestion.lat,
       lng: suggestion.lng,
-      desc: suggestion.desc,
-      icon: suggestion.icon,
-      type: suggestion.type,
+      desc: suggestion.desc || "",
+      icon: suggestion.icon || "landmark",
+      type: suggestion.type || "main",
       day: targetDay,
-      order: bestIdx,
       link: "",
-    };
+      suggestionText: suggestionText,
+    });
 
-    await addStop(tripId, payload);
+    setEditingStopId(null);
     setIsSuggestionsOpen(false);
-    loadData();
+    setIsFormOpen(true);
   };
 
   const handleDragStart = (e, id) => {
     setDraggedStopId(id);
     e.dataTransfer.effectAllowed = "move";
   };
+
   const handleDrop = async (e, tId) => {
     e.preventDefault();
     if (!draggedStopId || draggedStopId === tId) return;
@@ -980,7 +977,6 @@ export default function TripPlanner() {
               const next = listItems[idx + 1],
                 isW = next?.type === "attraction";
 
-              // FALLBACK TO ROUGH DURATION IF EXACT DATA NOT YET FETCHED (e.g. Overview Mode)
               const dur = routeLegs[idx]
                 ? routeLegs[idx]
                 : calculateRoughDuration(s, next, next?.type);
