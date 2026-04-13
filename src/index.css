@@ -1,4 +1,22 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+/* ==========================================================================
+   THEME VARIABLES (Original Light & Clean Aesthetic)
+   ========================================================================== */
+:root {
+  --bg-gradient: linear-gradient(145deg, #f3f0f9 0%, #f7faf2 100%);
+  --bg-main: #fdfcfd;
+  --card-bg: #fdfff1; /* The soft yellow/white of the bottom sheet */
+  --card-glass: rgba(255, 255, 255, 0.85); /* Landing page cards */
+  --text-main: #1a1a24;
+  --text-muted: #646473;
+  --border-color: rgba(0, 0, 0, 0.1);
+  --border-light: #eee;
+  --shadow-sm: 0 4px 12px rgba(0,0,0,0.1);
+  --shadow-lg: 0 -15px 40px rgba(0,0,0,0.12);
+  --radius-base: 12px;
+  --radius-lg: 24px;
+}
 
 /* --- Reset & Base --- */
 * {
@@ -9,10 +27,10 @@
 
 body {
   font-family: 'Inter', -apple-system, sans-serif;
-  color: #1a1a24;
+  color: var(--text-main);
   overscroll-behavior-y: none;
   min-height: 100vh;
-  background: linear-gradient(145deg, #f3f0f9 0%, #f7faf2 100%);
+  background: var(--bg-gradient);
   background-attachment: fixed;
 }
 
@@ -48,15 +66,15 @@ body {
 
 .trip-card {
   display: block;
-  background: rgba(255, 255, 255, 0.85); 
+  background: var(--card-glass); 
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   border: 1px solid rgba(255, 255, 255, 0.5);
-  border-radius: 12px; 
+  border-radius: var(--radius-base); 
   padding: 20px;
   margin-bottom: 24px;
   text-decoration: none; 
-  color: #1a1a24;
+  color: var(--text-main);
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08);
   transition: transform 0.2s ease;
   overflow: hidden; 
@@ -77,14 +95,14 @@ body {
   align-items: center;
   gap: 8px;
   font-size: 13px;
-  color: #646473;
+  color: var(--text-muted);
 }
 
 /* --- Map Preview (Landing Page) --- */
 .map-preview-container {
   width: 100%;
   height: 160px;
-  border-radius: 12px;
+  border-radius: var(--radius-base);
   overflow: hidden;
   margin-top: 20px;
   background: #f8f9fa;
@@ -96,7 +114,7 @@ body {
   width: 100%;
   height: 160px;
   background: rgba(255, 255, 255, 0.4);
-  border-radius: 12px;
+  border-radius: var(--radius-base);
   margin-top: 20px;
 }
 
@@ -118,9 +136,9 @@ body {
 .bottom-sheet {
   position: absolute;
   bottom: 0; left: 0; right: 0;
-  background: #fdfff1; 
-  border-radius: 24px 24px 0 0;
-  box-shadow: 0 -15px 40px rgba(0,0,0,0.12);
+  background: var(--card-bg); 
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  box-shadow: var(--shadow-lg);
   z-index: 10;
   display: flex;
   flex-direction: column;
@@ -164,14 +182,12 @@ body {
 
 .day-pill {
   padding: 8px 18px;
-  background: #1a1a24; 
-  border: 1px solid #1a1a24;
+  border: 1px solid transparent;
   border-radius: 20px;
   font-size: 13px;
   font-weight: 500;
   white-space: nowrap;
   cursor: pointer;
-  color: #fff;
   transition: opacity 0.2s;
 }
 
@@ -180,11 +196,11 @@ body {
 }
 
 .btn-primary {
-  background: #1a1a24 !important;
+  background: var(--text-main) !important;
   color: #fff !important;
   padding: 16px;
   border: none;
-  border-radius: 12px; 
+  border-radius: var(--radius-base); 
   width: 100%;
   font-size: 15px;
   font-weight: 600;
@@ -226,14 +242,14 @@ body {
   font-size: 11px;
   text-transform: uppercase;
   font-weight: 700;
-  color: #1a1a24;
+  color: var(--text-main);
   background: #fff;
   padding: 6px 14px;
   border-radius: 20px;
   display: inline-block;
-  margin: 48px 0 24px 0;
+  margin: 48px 0 24px 0; /* Updated extra spacing! */
   letter-spacing: 0.8px;
-  border: 1px solid rgba(0,0,0,0.1);
+  border: 1px solid var(--border-color);
 }
 
 .day-separator span {
@@ -248,7 +264,7 @@ body {
   background: #ffffff !important; 
   border: 1px solid rgba(0,0,0,0.08) !important;
   box-shadow: 0 2px 8px rgba(0,0,0,0.04);
-  color: #1a1a24;
+  color: var(--text-main);
   border-radius: 20px;
   padding: 6px 12px;
   font-size: 11px;
@@ -274,10 +290,10 @@ body {
 }
 
 .modal-content {
-  background: #fdfcfd; 
+  background: var(--bg-main); 
   width: 100%;
   padding: 30px 24px 50px 24px;
-  border-radius: 24px 24px 0 0; 
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0; 
   box-shadow: 0 -10px 40px rgba(0,0,0,0.1);
   height: 90vh;
   overflow-y: auto;
@@ -288,7 +304,7 @@ body {
   padding: 14px 16px;
   margin-bottom: 24px;
   background: #fff;
-  border: 1px solid rgba(0,0,0,0.1);
+  border: 1px solid var(--border-color);
   border-radius: 10px; 
   font-size: 15px;
   outline: none;
@@ -310,8 +326,8 @@ textarea.input-field {
 .pac-container {
   z-index: 10000 !important;
   border-radius: 8px;
-  border: 1px solid #eee;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+  border: 1px solid var(--border-light);
+  box-shadow: var(--shadow-sm);
   font-family: 'Inter', sans-serif;
   padding: 8px 0;
 }
@@ -319,7 +335,7 @@ textarea.input-field {
 .pac-item {
   padding: 10px 16px;
   font-size: 14px;
-  color: #1a1a24;
+  color: var(--text-main);
   cursor: pointer;
 }
 
@@ -329,11 +345,12 @@ textarea.input-field {
 
 .pac-item-query {
   font-weight: 600;
-  color: #1a1a24;
+  color: var(--text-main);
 }
 
+
 /* ==========================================================================
-   EXTRACTED TRIP PLANNER CLASSES 
+   EXTRACTED TRIP PLANNER CLASSES (New JS Structure)
    ========================================================================== */
 
 .loader-container {
@@ -356,7 +373,7 @@ textarea.input-field {
   justify-content: center;
   border-radius: 50%;
   box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-  color: #1a1a24;
+  color: var(--text-main);
 }
 
 .map-picking-banner {
@@ -370,7 +387,7 @@ textarea.input-field {
 }
 
 .map-picking-content {
-  background: #1a1a24;
+  background: var(--text-main);
   color: #fff;
   padding: 12px 24px;
   border-radius: 40px;
@@ -412,13 +429,14 @@ textarea.input-field {
   font-size: 18px;
   font-weight: 600;
   margin: 0 0 6px 0;
-  color: #1a1a24;
+  color: var(--text-main);
 }
 
 .day-header-line {
   height: 4px;
   width: 32px;
   border-radius: 2px;
+  border: none;
 }
 
 .timeline-content {
@@ -435,7 +453,7 @@ textarea.input-field {
 
 .timeline-desc {
   font-size: 12px;
-  color: #646473;
+  color: var(--text-muted);
   margin: 4px 0 0 0;
 }
 
@@ -459,7 +477,7 @@ textarea.input-field {
 
 .btn-map {
   background: #f0f0f5;
-  color: #1a1a24;
+  color: var(--text-main);
   font-weight: 500;
 }
 
@@ -532,7 +550,7 @@ textarea.input-field {
   padding: 16px;
   border-radius: 12px;
   margin-bottom: 20px;
-  border: 1px solid #eee;
+  border: 1px solid var(--border-light);
 }
 
 .autocomplete-row {
@@ -578,6 +596,7 @@ textarea.input-field {
   display: flex;
   align-items: center;
   justify-content: center;
+  border: 1px solid var(--border-light);
 }
 
 .mode-group {
@@ -594,6 +613,8 @@ textarea.input-field {
   justify-content: center;
   gap: 10px;
   cursor: pointer;
+  background: #fff;
+  border: 1px solid var(--border-light);
 }
 
 .mode-btn span {

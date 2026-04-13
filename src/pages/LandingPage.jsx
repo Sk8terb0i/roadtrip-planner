@@ -4,7 +4,7 @@ import DatePicker from "react-datepicker";
 import { format } from "date-fns";
 import { ArrowRight, Plus } from "lucide-react";
 import { getTrips, createTrip } from "../firebase";
-import TripPreviewMap from "./TripPreviewMap"; // New dynamic component
+import TripPreviewMap from "./TripPreviewMap";
 
 import "react-datepicker/dist/react-datepicker.css";
 
@@ -46,16 +46,12 @@ export default function LandingPage() {
     <div className="page-container">
       <h1 className="title">Itineraries</h1>
 
-      {/* Increased marginTop here to create a 60px gap from the title */}
-      <div
-        className="trips-list"
-        style={{ marginTop: "60px", paddingBottom: "30px" }}
-      >
+      <div className="trips-list">
         {trips.length === 0 ? (
           <div
             style={{
               padding: "60px 0",
-              color: "#646473",
+              color: "var(--text-muted)",
               fontSize: "14px",
               textAlign: "center",
             }}
@@ -79,7 +75,6 @@ export default function LandingPage() {
               </div>
             </div>
 
-            {/* Read-Only DYNAMIC Map Preview */}
             <TripPreviewMap tripId={trip.id} />
           </Link>
         ))}
@@ -90,14 +85,11 @@ export default function LandingPage() {
         New Itinerary
       </button>
 
-      {/* Slide-up Form */}
       {isModalOpen && (
         <div className="modal-overlay" onClick={() => setIsModalOpen(false)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <div style={{ marginBottom: "24px" }}>
-              <h2 style={{ fontSize: "18px", fontWeight: "600" }}>
-                Draft Itinerary
-              </h2>
+            <div className="modal-header-row">
+              <h2>Draft Itinerary</h2>
             </div>
 
             <form onSubmit={handleCreateTrip}>
