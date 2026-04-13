@@ -707,6 +707,33 @@ export default function TripPlanner() {
             </div>
           </div>
           <div className="timeline-container">
+            {/* STICKY TOP BUTTON: Only visible in Overview */}
+            {activeDay === "Overview" && (
+              <div className="sticky-add-wrapper">
+                <button
+                  className="btn-primary"
+                  onClick={() => {
+                    setFormData({
+                      name: "",
+                      type: "main",
+                      icon: "map-pin",
+                      day: 1,
+                      lat: "",
+                      lng: "",
+                      desc: "",
+                      link: "",
+                      suggestionText: "",
+                    });
+                    setEditingStopId(null);
+                    setIsFormOpen(true);
+                  }}
+                >
+                  <Plus size={16} /> Add Location
+                </button>
+              </div>
+            )}
+
+            {/* DAY HEADER: Only visible in specific Day views */}
             {activeDay !== "Overview" && trip.startDate && (
               <div className="day-header-container">
                 <div style={{ display: "flex", alignItems: "center" }}>
@@ -729,75 +756,77 @@ export default function TripPlanner() {
                 ></div>
               </div>
             )}
-            {listItems.map((s, idx) => {
-              const showH =
+
+            {listItems.map((stop, idx) => {
+              const showHeader =
                 activeDay === "Overview" &&
-                (idx === 0 || listItems[idx - 1].day !== s.day);
-              const next = listItems[idx + 1],
-                isW = next?.type === "attraction";
+                (idx === 0 || listItems[idx - 1].day !== stop.day);
+              const next = listItems[idx + 1];
+              const isWalk = next?.type === "attraction";
               const dur =
-                !isW && routeLegs[idx]
+                !isWalk && routeLegs[idx]
                   ? routeLegs[idx]
-                  : calculateRoughDuration(s, next, next?.type);
+                  : calculateRoughDuration(stop, next, next?.type);
+
               return (
-                <React.Fragment key={s.uniqueKey}>
-                  {showH && (
+                <React.Fragment key={stop.uniqueKey}>
+                  {showHeader && (
                     <div className="day-separator">
-                      Day {s.day} <span>• {getDateForDayString(s.day)}</span>
+                      Day {stop.day}{" "}
+                      <span>• {getDateForDayString(stop.day)}</span>
                     </div>
                   )}
                   <div
                     className="timeline-item"
-                    draggable={activeDay !== "Overview" && !s.isAnchor}
-                    onDragStart={(e) => handleDragStart(e, s.id)}
+                    draggable={activeDay !== "Overview" && !stop.isAnchor}
+                    onDragStart={(e) => handleDragStart(e, stop.id)}
                     onDragOver={(e) => e.preventDefault()}
-                    onDrop={(e) => handleDrop(e, s.id)}
-                    style={{
-                      opacity: draggedStopId === s.id ? 0.4 : 1,
-                      transition: "opacity 0.2s",
-                    }}
+                    onDrop={(e) => handleDrop(e, stop.id)}
+                    style={{ opacity: draggedStopId === stop.id ? 0.4 : 1 }}
                   >
                     <div
                       className="timeline-icon"
                       style={{
-                        background: s.isAnchor
+                        background: stop.isAnchor
                           ? "var(--text-main)"
-                          : getPistachio(s.day, totalDays),
-                        color: s.isAnchor ? "var(--bg-main)" : "#1a1a24",
+                          : getPistachio(stop.day, totalDays),
+                        color: stop.isAnchor ? "var(--bg-main)" : "#1a1a24",
                       }}
                     >
-                      {renderIconById(s.icon, 14)}
+                      {renderIconById(stop.icon, 14)}
                     </div>
                     <div className="timeline-content">
                       <div style={{ flex: 1 }}>
                         <h3 className="timeline-title">
-                          {s.isAnchor ? `Start: ${s.name}` : s.name}
+                          {stop.isAnchor ? `Start: ${stop.name}` : stop.name}
                         </h3>
-                        {s.desc && <p className="timeline-desc">{s.desc}</p>}
+                        {stop.desc && (
+                          <p className="timeline-desc">{stop.desc}</p>
+                        )}
                         <div className="timeline-action-row">
                           <button
                             className="btn-action-small btn-map"
-                            onClick={() => openMapsPoint(s.lat, s.lng)}
+                            onClick={() => openMapsPoint(stop.lat, stop.lng)}
                           >
                             <Search size={12} /> Map
                           </button>
-                          {s.link && (
+                          {stop.link && (
                             <button
                               className="btn-action-small btn-link"
-                              onClick={() => window.open(s.link, "_blank")}
+                              onClick={() => window.open(stop.link, "_blank")}
                             >
-                              <LinkIcon size={12} /> {formatLinkText(s.link)}
+                              <LinkIcon size={12} /> {formatLinkText(stop.link)}
                             </button>
                           )}
                         </div>
                       </div>
-                      {!s.isAnchor && (
+                      {!stop.isAnchor && (
                         <div className="timeline-controls">
                           <button
                             className="btn-icon"
                             onClick={() => {
-                              setFormData({ ...s, suggestionText: "" });
-                              setEditingStopId(s.id);
+                              setFormData({ ...stop, suggestionText: "" });
+                              setEditingStopId(stop.id);
                               setIsFormOpen(true);
                             }}
                           >
@@ -817,22 +846,26 @@ export default function TripPlanner() {
                       <div
                         className="duration-bridge-line"
                         style={{
-                          borderLeft: `2px dashed ${isW ? COLOR_WALK : getLavender(s.day, totalDays)}`,
+                          borderLeft: `2px dashed ${
+                            isWalk
+                              ? COLOR_WALK
+                              : getLavender(stop.day, totalDays)
+                          }`,
                         }}
                       >
                         <button
-                          onClick={() => openMapsRoute(s, next, next.type)}
+                          onClick={() => openMapsRoute(stop, next, next.type)}
                           className="info-panel-badge"
                         >
-                          {isW ? (
+                          {isWalk ? (
                             <Footprints size={12} color={COLOR_WALK} />
                           ) : (
                             <Car
                               size={12}
-                              color={getLavender(s.day, totalDays)}
+                              color={getLavender(stop.day, totalDays)}
                             />
                           )}
-                          <span>{dur}</span>{" "}
+                          <span>{dur}</span>
                           <ExternalLink size={10} style={{ opacity: 0.3 }} />
                         </button>
                       </div>
@@ -841,28 +874,32 @@ export default function TripPlanner() {
                 </React.Fragment>
               );
             })}
-            <div style={{ marginTop: "10px", paddingBottom: "40px" }}>
-              <button
-                className="btn-primary"
-                onClick={() => {
-                  setFormData({
-                    name: "",
-                    type: "main",
-                    icon: "map-pin",
-                    day: activeDay !== "Overview" ? parseInt(activeDay) : 1,
-                    lat: "",
-                    lng: "",
-                    desc: "",
-                    link: "",
-                    suggestionText: "",
-                  });
-                  setEditingStopId(null);
-                  setIsFormOpen(true);
-                }}
-              >
-                <Plus size={16} /> Add Location
-              </button>
-            </div>
+
+            {/* BOTTOM BUTTON: Only visible in specific Day views */}
+            {activeDay !== "Overview" && (
+              <div style={{ marginTop: "10px", paddingBottom: "40px" }}>
+                <button
+                  className="btn-primary"
+                  onClick={() => {
+                    setFormData({
+                      name: "",
+                      type: "main",
+                      icon: "map-pin",
+                      day: parseInt(activeDay),
+                      lat: "",
+                      lng: "",
+                      desc: "",
+                      link: "",
+                      suggestionText: "",
+                    });
+                    setEditingStopId(null);
+                    setIsFormOpen(true);
+                  }}
+                >
+                  <Plus size={16} /> Add Location
+                </button>
+              </div>
+            )}
           </div>
         </div>
 
