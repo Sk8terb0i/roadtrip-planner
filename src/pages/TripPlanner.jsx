@@ -34,8 +34,7 @@ import {
   Moon,
   Sun,
   Home,
-  ChevronDown,
-  ChevronUp,
+  Wand2,
 } from "lucide-react";
 import {
   getTrip,
@@ -44,6 +43,8 @@ import {
   updateStop,
   deleteStop,
 } from "../firebase";
+
+import { CURATED_SUGGESTIONS } from "./suggestions";
 
 // --- THEME CONSTANTS ---
 const COLOR_DRIVE = "#9b8ce3";
@@ -108,14 +109,15 @@ const calculateDistance = (start, end) => {
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 };
 
+// Only used as a fallback for the Overview mode now
 const calculateRoughDuration = (start, end, mode) => {
   const distance = calculateDistance(start, end);
   if (distance === 0) return null;
-  const mins = Math.round(
-    ((distance * (mode === "attraction" ? 1.2 : 1.5)) /
-      (mode === "attraction" ? 4.5 : 40)) *
-      60,
-  );
+  const isWalk = mode === "attraction";
+  const detourMultiplier = isWalk ? 1.8 : 1.5;
+  const realWorldDistance = distance * detourMultiplier;
+  const speedKmh = isWalk ? 3.5 : 40;
+  const mins = Math.round((realWorldDistance / speedKmh) * 60);
   return mins < 60
     ? `${Math.max(1, mins)} min`
     : `${Math.floor(mins / 60)}h ${mins % 60}m`;
@@ -204,26 +206,28 @@ function MapRouteRenderer({
   const map = useMap();
   const routesLib = useMapsLibrary("routes");
   const mapsLib = useMapsLibrary("maps");
-  const activePolylineRef = useRef(null);
+  const activePolylinesRef = useRef([]); // Changed to Array to hold multiple segments
   const overviewPolylinesRef = useRef([]);
 
   useEffect(() => {
     if (!map || !mapsLib) return;
-    activePolylineRef.current = new mapsLib.Polyline({
-      map: null,
-      strokeOpacity: 0.9,
-      strokeWeight: 7,
-    });
-    return () => activePolylineRef.current?.setMap(null);
+    return () => {
+      activePolylinesRef.current.forEach((p) => p.setMap(null));
+      overviewPolylinesRef.current.forEach((p) => p.setMap(null));
+    };
   }, [map, mapsLib]);
 
   useEffect(() => {
-    if (!routesLib || !mapsLib || !map || !activePolylineRef.current) return;
+    if (!routesLib || !mapsLib || !map) return;
+
+    // Clear everything before drawing
     overviewPolylinesRef.current.forEach((p) => p.setMap(null));
     overviewPolylinesRef.current = [];
-    activePolylineRef.current.setMap(null);
+    activePolylinesRef.current.forEach((p) => p.setMap(null));
+    activePolylinesRef.current = [];
     onLegsCalculated([]);
 
+    // 1. Overview Mode Logic
     if (activeDay === "Overview" || listItems.length < 2) {
       if (activeDay === "Overview" && listItems.length > 1) {
         const days = [...new Set(listItems.map((s) => s.day))];
@@ -253,40 +257,89 @@ function MapRouteRenderer({
       return;
     }
 
-    new routesLib.DirectionsService()
-      .route({
-        origin: { lat: listItems[0].lat, lng: listItems[0].lng },
-        destination: {
-          lat: listItems[listItems.length - 1].lat,
-          lng: listItems[listItems.length - 1].lng,
-        },
-        waypoints: listItems
-          .slice(1, -1)
-          .slice(0, 10)
-          .map((s) => ({
-            location: { lat: s.lat, lng: s.lng },
-            stopover: true,
-          })),
-        travelMode: routesLib.TravelMode.DRIVING,
-      })
-      .then((res) => {
-        if (res.routes[0]) {
+    // 2. Day View Mode Logic: FETCH EXACT ROUTES SEGMENT BY SEGMENT
+    const ds = new routesLib.DirectionsService();
+    const promises = [];
+
+    for (let i = 0; i < listItems.length - 1; i++) {
+      const start = listItems[i];
+      const end = listItems[i + 1];
+      const mode =
+        end.type === "attraction"
+          ? routesLib.TravelMode.WALKING
+          : routesLib.TravelMode.DRIVING;
+
+      promises.push(
+        ds
+          .route({
+            origin: { lat: start.lat, lng: start.lng },
+            destination: { lat: end.lat, lng: end.lng },
+            travelMode: mode,
+          })
+          .then((res) => ({ res, mode, index: i }))
+          .catch((err) => {
+            console.warn("Route API limit/error:", err);
+            return null;
+          }),
+      );
+    }
+
+    Promise.all(promises).then((results) => {
+      const newLegs = new Array(listItems.length - 1).fill("");
+      const newPolylines = [];
+
+      results.forEach((result) => {
+        if (result && result.res.routes[0]) {
+          const route = result.res.routes[0];
+          const leg = route.legs[0];
+
+          // GRAB EXACT GOOGLE DURATION TEXT
+          newLegs[result.index] = leg.duration.text;
+
+          // Extract path
           const path = [];
-          res.routes[0].legs.forEach((leg) =>
-            leg.steps.forEach((step) =>
-              step.path.forEach((pt) =>
-                path.push({ lat: pt.lat(), lng: pt.lng() }),
-              ),
-            ),
-          );
-          activePolylineRef.current.setPath(path);
-          activePolylineRef.current.setOptions({
-            strokeColor: getLavender(parseInt(activeDay), totalDays),
+          leg.steps.forEach((step) => step.path.forEach((pt) => path.push(pt)));
+
+          // Style based on mode
+          const color =
+            result.mode === routesLib.TravelMode.WALKING
+              ? COLOR_WALK
+              : getLavender(parseInt(activeDay), totalDays);
+
+          const line = new mapsLib.Polyline({
+            map,
+            path,
+            strokeColor: color,
+            strokeOpacity:
+              result.mode === routesLib.TravelMode.WALKING ? 0 : 0.9,
+            strokeWeight: 5,
           });
-          activePolylineRef.current.setMap(map);
-          onLegsCalculated(res.routes[0].legs.map((l) => l.duration.text));
+
+          // Make walking path dashed!
+          if (result.mode === routesLib.TravelMode.WALKING) {
+            line.setOptions({
+              icons: [
+                {
+                  icon: {
+                    path: "M 0,-1 0,1",
+                    strokeOpacity: 1,
+                    scale: 3,
+                    strokeColor: color,
+                  },
+                  offset: "0",
+                  repeat: "15px",
+                },
+              ],
+            });
+          }
+
+          newPolylines.push(line);
         }
       });
+
+      activePolylinesRef.current = newPolylines;
+      onLegsCalculated(newLegs);
+    });
   }, [listItems, activeDay, routesLib, mapsLib, map, totalDays]);
 
   useEffect(() => {
@@ -332,7 +385,11 @@ export default function TripPlanner() {
   const [sheetHeight, setSheetHeight] = useState(55);
   const [isDragging, setIsDragging] = useState(false);
   const [routeLegs, setRouteLegs] = useState([]);
+
+  // Modals
   const [isFormOpen, setIsFormOpen] = useState(false);
+  const [isSuggestionsOpen, setIsSuggestionsOpen] = useState(false);
+
   const [editingStopId, setEditingStopId] = useState(null);
   const [isPickingOnMap, setIsPickingOnMap] = useState(false);
   const [draggedStopId, setDraggedStopId] = useState(null);
@@ -440,13 +497,73 @@ export default function TripPlanner() {
   );
   const totalDays = uniqueDays.length > 0 ? Math.max(...uniqueDays) : 1;
 
-  // RE-ADDED: Helper function for processing selections (handles smart suggesting)
+  const filteredSuggestions = useMemo(() => {
+    // 1. FILTER OUT STOPS ALREADY IN THE ITINERARY
+    // We check if any existing stop has the same name as the suggestion
+    const availableSuggestions = CURATED_SUGGESTIONS.filter(
+      (suggestion) => !stops.some((stop) => stop.name === suggestion.name),
+    );
+
+    // 2. If in Overview mode or we have no stops, show all AVAILABLE suggestions
+    if (activeDay === "Overview" || stops.length === 0)
+      return availableSuggestions;
+
+    const targetDay = parseInt(activeDay);
+
+    return availableSuggestions.filter((suggestion) => {
+      let minDetourAllDays = Infinity;
+      let bestDay = 1;
+
+      uniqueDays.forEach((d) => {
+        const dStops = stops
+          .filter((s) => s.day === d)
+          .sort((a, b) => a.order - b.order);
+
+        if (dStops.length === 0) return;
+
+        let dayMin = Infinity;
+        if (dStops.length === 1) {
+          dayMin = calculateDistance(dStops[0], suggestion);
+        } else {
+          // Test endpoints
+          dayMin = Math.min(
+            calculateDistance(suggestion, dStops[0]),
+            calculateDistance(dStops[dStops.length - 1], suggestion),
+          );
+          // Test between existing stops
+          for (let i = 0; i < dStops.length - 1; i++) {
+            const det =
+              calculateDistance(dStops[i], suggestion) +
+              calculateDistance(suggestion, dStops[i + 1]) -
+              calculateDistance(dStops[i], dStops[i + 1]);
+            if (det < dayMin) dayMin = det;
+          }
+        }
+
+        if (dayMin < minDetourAllDays) {
+          minDetourAllDays = dayMin;
+          bestDay = d;
+        }
+      });
+
+      // Show it if the algorithm would auto-assign it to this day,
+      // OR if it happens to be physically less than 20km from any stop on this day.
+      const dayStops = stops.filter((s) => s.day === targetDay);
+      const minDistanceToCurrentDay =
+        dayStops.length > 0
+          ? Math.min(...dayStops.map((s) => calculateDistance(s, suggestion)))
+          : Infinity;
+
+      return bestDay === targetDay || minDistanceToCurrentDay < 20;
+    });
+  }, [activeDay, stops, uniqueDays]);
+
   const processPlaceSelection = (lat, lng, name) => {
     let suggestedDay = formData.day,
       suggestionText = "";
     if (activeDay === "Overview" && stops.length > 0) {
-      let minDetour = Infinity,
-        bestDay = 1;
+      let minD = Infinity,
+        bDay = 1;
       const uDays = [...new Set(stops.map((s) => Number(s.day)))].sort(
         (a, b) => a - b,
       );
@@ -460,14 +577,14 @@ export default function TripPlanner() {
             calculateDistance(dStops[i], { lat, lng }) +
             calculateDistance({ lat, lng }, dStops[i + 1]) -
             calculateDistance(dStops[i], dStops[i + 1]);
-          if (det < minDetour) {
-            minDetour = det;
-            bestDay = d;
+          if (det < minD) {
+            minD = det;
+            bDay = d;
           }
         }
       });
-      suggestedDay = bestDay;
-      suggestionText = `✨ the allknowing horse suggests day ${bestDay}`;
+      suggestedDay = bDay;
+      suggestionText = `✨ the allknowing horse suggests day ${bDay}`;
     }
     setFormData((p) => ({
       ...p,
@@ -512,6 +629,88 @@ export default function TripPlanner() {
       ? await updateStop(tripId, editingStopId, payload)
       : await addStop(tripId, payload);
     setIsFormOpen(false);
+    loadData();
+  };
+
+  const handleAddSuggestion = async (suggestion) => {
+    let targetDay = activeDay === "Overview" ? 1 : parseInt(activeDay);
+    if (activeDay === "Overview" && stops.length > 0) {
+      let minDetourDay = Infinity;
+      uniqueDays.forEach((d) => {
+        const dStops = stops
+          .filter((s) => s.day === d)
+          .sort((a, b) => a.order - b.order);
+        if (dStops.length > 0) {
+          for (let i = 0; i < dStops.length - 1; i++) {
+            const det =
+              calculateDistance(dStops[i], suggestion) +
+              calculateDistance(suggestion, dStops[i + 1]) -
+              calculateDistance(dStops[i], dStops[i + 1]);
+            if (det < minDetourDay) {
+              minDetourDay = det;
+              targetDay = d;
+            }
+          }
+        }
+      });
+    }
+
+    const dayStops = stops
+      .filter((s) => s.day === targetDay)
+      .sort((a, b) => a.order - b.order);
+    let bestIdx = dayStops.length;
+    let minDetour = Infinity;
+
+    if (dayStops.length > 0) {
+      const distFirst = calculateDistance(suggestion, dayStops[0]);
+      if (distFirst < minDetour) {
+        minDetour = distFirst;
+        bestIdx = 0;
+      }
+
+      for (let i = 0; i < dayStops.length - 1; i++) {
+        const det =
+          calculateDistance(dayStops[i], suggestion) +
+          calculateDistance(suggestion, dayStops[i + 1]) -
+          calculateDistance(dayStops[i], dayStops[i + 1]);
+        if (det < minDetour) {
+          minDetour = det;
+          bestIdx = i + 1;
+        }
+      }
+
+      const distLast = calculateDistance(
+        dayStops[dayStops.length - 1],
+        suggestion,
+      );
+      if (distLast < minDetour) {
+        minDetour = distLast;
+        bestIdx = dayStops.length;
+      }
+    } else {
+      bestIdx = 0;
+    }
+
+    const updates = [];
+    for (let i = bestIdx; i < dayStops.length; i++) {
+      updates.push(updateStop(tripId, dayStops[i].id, { order: i + 1 }));
+    }
+    await Promise.all(updates);
+
+    const payload = {
+      name: suggestion.name,
+      lat: suggestion.lat,
+      lng: suggestion.lng,
+      desc: suggestion.desc,
+      icon: suggestion.icon,
+      type: suggestion.type,
+      day: targetDay,
+      order: bestIdx,
+      link: "",
+    };
+
+    await addStop(tripId, payload);
+    setIsSuggestionsOpen(false);
     loadData();
   };
 
@@ -568,7 +767,6 @@ export default function TripPlanner() {
 
   return (
     <div className="planner-layout">
-      {/* --- TOP UTILITY DRAWER --- */}
       <div className={`utility-drawer ${drawerOpen ? "open" : ""}`}>
         <div
           className="drawer-handle-container"
@@ -712,9 +910,13 @@ export default function TripPlanner() {
 
           <div className="timeline-container">
             {activeDay === "Overview" && (
-              <div className="sticky-add-wrapper">
+              <div
+                className="sticky-add-wrapper"
+                style={{ display: "flex", gap: "8px" }}
+              >
                 <button
                   className="btn-primary"
+                  style={{ flex: 1 }}
                   onClick={() => {
                     setFormData({
                       name: "",
@@ -731,7 +933,19 @@ export default function TripPlanner() {
                     setIsFormOpen(true);
                   }}
                 >
-                  <Plus size={16} /> Add Location
+                  <Plus size={16} /> Add
+                </button>
+                <button
+                  className="btn-primary"
+                  style={{
+                    flex: 1,
+                    background: "var(--card-bg)",
+                    color: "var(--text-main)",
+                    border: "1px solid var(--border-color)",
+                  }}
+                  onClick={() => setIsSuggestionsOpen(true)}
+                >
+                  <Wand2 size={16} /> Get Suggestions
                 </button>
               </div>
             )}
@@ -765,10 +979,12 @@ export default function TripPlanner() {
                 (idx === 0 || listItems[idx - 1].day !== s.day);
               const next = listItems[idx + 1],
                 isW = next?.type === "attraction";
-              const dur =
-                !isW && routeLegs[idx]
-                  ? routeLegs[idx]
-                  : calculateRoughDuration(s, next, next?.type);
+
+              // FALLBACK TO ROUGH DURATION IF EXACT DATA NOT YET FETCHED (e.g. Overview Mode)
+              const dur = routeLegs[idx]
+                ? routeLegs[idx]
+                : calculateRoughDuration(s, next, next?.type);
+
               return (
                 <React.Fragment key={s.uniqueKey}>
                   {showH && (
@@ -873,9 +1089,17 @@ export default function TripPlanner() {
             })}
 
             {activeDay !== "Overview" && (
-              <div style={{ marginTop: "10px", paddingBottom: "40px" }}>
+              <div
+                style={{
+                  marginTop: "10px",
+                  paddingBottom: "40px",
+                  display: "flex",
+                  gap: "8px",
+                }}
+              >
                 <button
                   className="btn-primary"
+                  style={{ flex: 1 }}
                   onClick={() => {
                     setFormData({
                       name: "",
@@ -894,11 +1118,24 @@ export default function TripPlanner() {
                 >
                   <Plus size={16} /> Add Location
                 </button>
+                <button
+                  className="btn-primary"
+                  style={{
+                    flex: 1,
+                    background: "var(--card-bg)",
+                    color: "var(--text-main)",
+                    border: "1px solid var(--border-color)",
+                  }}
+                  onClick={() => setIsSuggestionsOpen(true)}
+                >
+                  <Wand2 size={16} /> Get Suggestions
+                </button>
               </div>
             )}
           </div>
         </div>
 
+        {/* --- ADD LOCATION MODAL --- */}
         {isFormOpen && (
           <div className="modal-overlay" onClick={() => setIsFormOpen(false)}>
             <div className="modal-content" onClick={(e) => e.stopPropagation()}>
@@ -1081,6 +1318,126 @@ export default function TripPlanner() {
                   Save to Itinerary
                 </button>
               </form>
+            </div>
+          </div>
+        )}
+
+        {/* --- MAGIC SUGGESTIONS MODAL --- */}
+        {isSuggestionsOpen && (
+          <div
+            className="modal-overlay"
+            onClick={() => setIsSuggestionsOpen(false)}
+          >
+            <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+              <div className="modal-header-row">
+                <h2>
+                  {activeDay === "Overview"
+                    ? "Top Stops on the Riviera"
+                    : `Suggestions for Day ${activeDay}`}
+                </h2>
+              </div>
+              <p
+                style={{
+                  fontSize: 13,
+                  color: "var(--text-muted)",
+                  marginBottom: 20,
+                }}
+              >
+                {activeDay === "Overview"
+                  ? "Curated based on highly rated travel forums. We'll automatically insert your selection in the most optimal order."
+                  : "Curated stops that physically fit into this specific day's route based on driving detour logic."}
+              </p>
+
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "16px",
+                }}
+              >
+                {filteredSuggestions.length > 0 ? (
+                  filteredSuggestions.map((suggestion, index) => (
+                    <div
+                      key={index}
+                      className="form-section"
+                      style={{
+                        margin: 0,
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: "8px",
+                      }}
+                    >
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "10px",
+                        }}
+                      >
+                        <div
+                          style={{
+                            background: "var(--pill-inactive)",
+                            padding: "8px",
+                            borderRadius: "50%",
+                            color: "var(--text-main)",
+                          }}
+                        >
+                          {renderIconById(suggestion.icon, 16)}
+                        </div>
+                        <h3 style={{ fontSize: 16, fontWeight: 600, flex: 1 }}>
+                          {suggestion.name}
+                        </h3>
+                        <button
+                          className="btn-action-small"
+                          style={{
+                            background: "#7cce22",
+                            color: "#fff",
+                            padding: "6px 12px",
+                          }}
+                          onClick={() => handleAddSuggestion(suggestion)}
+                        >
+                          <Plus size={14} /> Add
+                        </button>
+                      </div>
+                      <p
+                        style={{
+                          fontSize: 13,
+                          color: "var(--text-muted)",
+                          margin: 0,
+                        }}
+                      >
+                        {suggestion.desc}
+                      </p>
+                    </div>
+                  ))
+                ) : (
+                  <div style={{ textAlign: "center", padding: "40px 20px" }}>
+                    <MapPin
+                      size={32}
+                      style={{
+                        opacity: 0.2,
+                        marginBottom: 12,
+                        color: "var(--text-main)",
+                      }}
+                    />
+                    <p style={{ color: "var(--text-muted)", fontSize: 14 }}>
+                      No nearby curated suggestions found for this specific
+                      route segment.
+                    </p>
+                    <button
+                      className="btn-primary"
+                      style={{ marginTop: 16 }}
+                      onClick={() => {
+                        setIsSuggestionsOpen(false);
+                        setActiveDay("Overview");
+                        setTimeout(() => setIsSuggestionsOpen(true), 300);
+                      }}
+                    >
+                      View All Suggestions
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         )}
