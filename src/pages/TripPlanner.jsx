@@ -33,6 +33,7 @@ import {
   Loader2,
   MousePointer2,
   GripVertical,
+  Sparkles,
 } from "lucide-react";
 import {
   getTrip,
@@ -43,13 +44,11 @@ import {
 } from "../firebase";
 
 // --- THEME CONSTANTS ---
-// Retained for the modal selection buttons
 const COLOR_DRIVE = "#9b8ce3";
 const COLOR_WALK = "#98c962";
 const COLOR_ACTIVITY = "#b7c39b";
 
 // --- DYNAMIC GRADIENT CALCULATOR ---
-// This smoothly scales the color from light (Day 1) to dark (Final Day)
 const getDynamicColor = (day, totalDays, hue, sat, minL, maxL) => {
   if (totalDays <= 1) return `hsl(${hue}, ${sat}%, ${(minL + maxL) / 2}%)`;
   const safeDay = Math.min(Math.max(1, day), totalDays);
@@ -58,10 +57,8 @@ const getDynamicColor = (day, totalDays, hue, sat, minL, maxL) => {
   return `hsl(${hue}, ${sat}%, ${l}%)`;
 };
 
-// Lavender: hue 248. Goes from 92% (bright) down to 60% (dark purple)
 const getLavender = (day, totalDays) =>
   getDynamicColor(day, totalDays, 248, 85, 60, 92);
-// Pistachio: hue 82. Goes from 88% (bright) down to 40% (dark green)
 const getPistachio = (day, totalDays) =>
   getDynamicColor(day, totalDays, 82, 65, 40, 88);
 
@@ -79,9 +76,44 @@ const renderIconById = (id, size = 12) => {
   return React.cloneElement(config.icon, { size });
 };
 
-// --- DURATION CALCULATOR ---
-const calculateRoughDuration = (start, end, mode) => {
-  if (!start || !end || !start.lat || !end.lat) return null;
+// --- MAPS OS DETECTOR & LAUNCHER ---
+const openMapsPoint = (lat, lng) => {
+  const isIOS =
+    /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+  if (isIOS) {
+    window.open(
+      `http://maps.apple.com/?q=${lat},${lng}&ll=${lat},${lng}`,
+      "_blank",
+    );
+  } else {
+    window.open(
+      `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`,
+      "_blank",
+    );
+  }
+};
+
+const openMapsRoute = (start, end, mode) => {
+  const isIOS =
+    /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+  if (isIOS) {
+    const dirflg = mode === "attraction" ? "w" : "d";
+    window.open(
+      `http://maps.apple.com/?saddr=${start.lat},${start.lng}&daddr=${end.lat},${end.lng}&dirflg=${dirflg}`,
+      "_blank",
+    );
+  } else {
+    const travelmode = mode === "attraction" ? "walking" : "driving";
+    window.open(
+      `https://www.google.com/maps/dir/?api=1&origin=${start.lat},${start.lng}&destination=${end.lat},${end.lng}&travelmode=${travelmode}`,
+      "_blank",
+    );
+  }
+};
+
+// --- MATH CALCULATORS ---
+const calculateDistance = (start, end) => {
+  if (!start || !end || !start.lat || !end.lat) return 0;
   const R = 6371;
   const dLat = ((end.lat - start.lat) * Math.PI) / 180;
   const dLon = ((end.lng - start.lng) * Math.PI) / 180;
@@ -91,7 +123,12 @@ const calculateRoughDuration = (start, end, mode) => {
       Math.cos((end.lat * Math.PI) / 180) *
       Math.sin(dLon / 2) *
       Math.sin(dLon / 2);
-  const distance = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+};
+
+const calculateRoughDuration = (start, end, mode) => {
+  const distance = calculateDistance(start, end);
+  if (distance === 0) return null;
   const isWalk = mode === "attraction";
   const mins = Math.round(
     ((distance * (isWalk ? 1.2 : 1.5)) / (isWalk ? 4.5 : 40)) * 60,
@@ -110,10 +147,74 @@ const formatLinkText = (url) => {
   }
 };
 
+// --- WEATHER WIDGET (Open-Meteo API) ---
+const getWeatherEmoji = (code) => {
+  const weatherMap = {
+    0: "☀️",
+    1: "🌤",
+    2: "⛅️",
+    3: "☁️",
+    45: "🌫",
+    48: "🌫",
+    51: "🌧",
+    53: "🌧",
+    55: "🌧",
+    61: "🌧",
+    63: "🌧",
+    65: "🌧",
+    71: "❄️",
+    73: "❄️",
+    75: "❄️",
+    95: "⛈",
+    96: "⛈",
+    99: "⛈",
+  };
+  return weatherMap[code] || "🌤";
+};
+
+function WeatherWidget({ lat, lng, dateString }) {
+  const [weather, setWeather] = useState(null);
+
+  useEffect(() => {
+    if (!lat || !lng || !dateString) return;
+    const target = new Date(dateString);
+    const diffDays = Math.ceil((target - new Date()) / (1000 * 60 * 60 * 24));
+
+    // Open-Meteo only provides 14-day forecasts
+    if (diffDays >= 0 && diffDays <= 14) {
+      const formattedDate = target.toISOString().split("T")[0];
+      fetch(
+        `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&daily=weather_code,temperature_2m_max,temperature_2m_min&start_date=${formattedDate}&end_date=${formattedDate}&timezone=auto`,
+      )
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.daily && data.daily.weather_code) {
+            setWeather({
+              max: Math.round(data.daily.temperature_2m_max[0]),
+              min: Math.round(data.daily.temperature_2m_min[0]),
+              code: data.daily.weather_code[0],
+            });
+          }
+        })
+        .catch((e) => console.warn("Weather fetch failed", e));
+    }
+  }, [lat, lng, dateString]);
+
+  if (!weather) return null;
+
+  return (
+    <span
+      style={{ fontSize: 13, marginLeft: 12, opacity: 0.8, fontWeight: 500 }}
+    >
+      {getWeatherEmoji(weather.code)} {weather.max}° / {weather.min}°
+    </span>
+  );
+}
+
 const defaultCenter = { lat: 41.3275, lng: 19.8187 };
 
 // =====================================================================
-// NATIVE GOOGLE MAPS CONTROLLERS (100% Loop-Free Manual Drawing)
+// NATIVE GOOGLE MAPS CONTROLLERS
 // =====================================================================
 
 function MapRouteRenderer({
@@ -129,7 +230,6 @@ function MapRouteRenderer({
   const overviewPolylinesRef = useRef([]);
   const activePolylineRef = useRef(null);
 
-  // Initialize the manual Day View line once
   useEffect(() => {
     if (!map || !mapsLib) return;
     activePolylineRef.current = new mapsLib.Polyline({
@@ -145,7 +245,6 @@ function MapRouteRenderer({
   useEffect(() => {
     if (!routesLib || !mapsLib || !map || !activePolylineRef.current) return;
 
-    // Wipe previous renders clean
     overviewPolylinesRef.current.forEach((p) => p.setMap(null));
     overviewPolylinesRef.current = [];
     activePolylineRef.current.setMap(null);
@@ -158,14 +257,10 @@ function MapRouteRenderer({
 
         days.forEach((day, index) => {
           const dayStops = listItems.filter((s) => s.day === day);
-
-          // Connect to the first stop of the next day so the line is continuous
           const nextDayStops = listItems.filter(
             (s) => s.day === days[index + 1],
           );
-          if (nextDayStops.length > 0) {
-            dayStops.push(nextDayStops[0]);
-          }
+          if (nextDayStops.length > 0) dayStops.push(nextDayStops[0]);
 
           if (dayStops.length > 1) {
             const line = new mapsLib.Polyline({
@@ -190,7 +285,6 @@ function MapRouteRenderer({
       return;
     }
 
-    // --- DAY VIEW MANAUL ROUTE DRAWING ---
     const activeColor = getLavender(parseInt(activeDay), totalDays);
     const directionsService = new routesLib.DirectionsService();
 
@@ -212,7 +306,6 @@ function MapRouteRenderer({
       })
       .then((res) => {
         if (res.routes[0]) {
-          // Extract exact path points natively so Google doesn't hijack camera
           const fullPath = [];
           res.routes[0].legs.forEach((leg) => {
             leg.steps.forEach((step) => {
@@ -238,7 +331,6 @@ function MapRouteRenderer({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [listItems, activeDay, routesLib, mapsLib, map, totalDays]);
 
-  // Handle safe zooming
   useEffect(() => {
     if (!map || listItems.length === 0) return;
     const bounds = new window.google.maps.LatLngBounds();
@@ -310,6 +402,7 @@ export default function TripPlanner() {
     lng: "",
     desc: "",
     link: "",
+    suggestionText: "",
   });
 
   useEffect(() => {
@@ -322,25 +415,34 @@ export default function TripPlanner() {
   };
 
   const handleLegsCalculated = useCallback((newLegs) => {
-    setRouteLegs((prev) => {
-      if (JSON.stringify(prev) === JSON.stringify(newLegs)) return prev;
-      return newLegs;
-    });
+    setRouteLegs((prev) =>
+      JSON.stringify(prev) === JSON.stringify(newLegs) ? prev : newLegs,
+    );
   }, []);
 
-  const getDateForDay = useCallback(
+  const getDateForDayRaw = useCallback(
     (dayNum) => {
-      if (!trip || !trip.startDate) return "";
+      if (!trip || !trip.startDate) return null;
       const d = new Date(trip.startDate);
-      if (isNaN(d)) return "";
+      if (isNaN(d)) return null;
       d.setDate(d.getDate() + (parseInt(dayNum) - 1));
-      return d.toLocaleDateString("en-US", {
-        weekday: "long",
-        month: "short",
-        day: "numeric",
-      });
+      return d;
     },
     [trip],
+  );
+
+  const getDateForDayString = useCallback(
+    (dayNum) => {
+      const d = getDateForDayRaw(dayNum);
+      return d
+        ? d.toLocaleDateString("en-US", {
+            weekday: "long",
+            month: "short",
+            day: "numeric",
+          })
+        : "";
+    },
+    [getDateForDayRaw],
   );
 
   const sortedStops = useMemo(
@@ -388,7 +490,7 @@ export default function TripPlanner() {
   );
   const totalDays = uniqueDays.length > 0 ? Math.max(...uniqueDays) : 1;
 
-  // --- MAP PICKING LOGIC ---
+  // --- SMART SUGGESTION & MAP PICKING LOGIC ---
   const handleMapClick = async (e) => {
     if (!isPickingOnMap || !e.detail.latLng) return;
     const { lat, lng } = e.detail.latLng;
@@ -406,20 +508,60 @@ export default function TripPlanner() {
       console.warn("Geocoding failed", err);
     }
 
-    setFormData((prev) => ({ ...prev, lat, lng, name: locationName }));
+    processPlaceSelection(lat, lng, locationName);
     setIsPickingOnMap(false);
     setIsFormOpen(true);
   };
 
-  const handlePlaceSelect = useCallback((place) => {
-    if (!place.geometry) return;
+  const handlePlaceSelect = useCallback(
+    (place) => {
+      if (!place.geometry) return;
+      processPlaceSelection(
+        place.geometry.location.lat(),
+        place.geometry.location.lng(),
+        place.name || place.formatted_address,
+      );
+    },
+    [activeDay, stops, formData.day],
+  );
+
+  const processPlaceSelection = (lat, lng, name) => {
+    let suggestedDay = formData.day;
+    let suggestionText = "";
+
+    // If adding from Overview, calculate the minimal detour to suggest a day
+    if (activeDay === "Overview" && stops.length > 0) {
+      let minDetour = Infinity;
+      let bestDay = 1;
+
+      uniqueDays.forEach((day) => {
+        const dayStops = stops
+          .filter((s) => s.day === day)
+          .sort((a, b) => a.order - b.order);
+        for (let i = 0; i < dayStops.length - 1; i++) {
+          const detour =
+            calculateDistance(dayStops[i], { lat, lng }) +
+            calculateDistance({ lat, lng }, dayStops[i + 1]) -
+            calculateDistance(dayStops[i], dayStops[i + 1]);
+          if (detour < minDetour) {
+            minDetour = detour;
+            bestDay = day;
+          }
+        }
+      });
+      suggestedDay = bestDay;
+      suggestionText = `✨ Smart assigned to Day ${bestDay}`;
+    }
+
     setFormData((prev) => ({
       ...prev,
-      name: place.name || place.formatted_address,
-      lat: place.geometry.location.lat(),
-      lng: place.geometry.location.lng(),
+      name,
+      lat,
+      lng,
+      day: suggestedDay,
+      suggestionText,
     }));
-  }, []);
+  };
 
   const handleSaveStop = async (e) => {
     e.preventDefault();
@@ -431,6 +573,8 @@ export default function TripPlanner() {
       lng: parseFloat(formData.lng),
       day: parseInt(formData.day),
     };
+    delete payload.suggestionText; // Remove UI helper text before saving to DB
+
     if (!editingStopId)
       payload.order = stops.filter((s) => s.day === payload.day).length;
     editingStopId
@@ -515,7 +659,6 @@ export default function TripPlanner() {
       window.removeEventListener("mousemove", handleMove);
       window.removeEventListener("mouseup", () => setIsDragging(false));
       window.removeEventListener("touchmove", handleMove);
-      window.removeEventListener("touchmove", handleMove);
       window.removeEventListener("touchend", () => setIsDragging(false));
     };
   }, [isDragging]);
@@ -580,9 +723,8 @@ export default function TripPlanner() {
                   position={{ lat: stop.lat, lng: stop.lng }}
                   title={stop.name}
                   onClick={() => {
-                    if (activeDay === "Overview" && !stop.isAnchor) {
+                    if (activeDay === "Overview" && !stop.isAnchor)
                       setActiveDay(stop.day);
-                    }
                   }}
                 >
                   <div
@@ -640,7 +782,7 @@ export default function TripPlanner() {
                     style={{
                       backgroundColor: dayColor,
                       borderColor: dayColor,
-                      color: "#fff" /* <-- Changed this from #1a1a24 to #fff */,
+                      color: "#fff",
                     }}
                   >
                     Day {day}
@@ -653,7 +795,18 @@ export default function TripPlanner() {
           <div className="timeline-container">
             {activeDay !== "Overview" && trip.startDate && (
               <div className="day-header-container">
-                <h2 className="day-header-title">{getDateForDay(activeDay)}</h2>
+                <div style={{ display: "flex", alignItems: "center" }}>
+                  <h2 className="day-header-title">
+                    {getDateForDayString(activeDay)}
+                  </h2>
+                  {listItems.length > 0 && (
+                    <WeatherWidget
+                      lat={listItems[0].lat}
+                      lng={listItems[0].lng}
+                      dateString={getDateForDayRaw(activeDay)}
+                    />
+                  )}
+                </div>
                 <div
                   className="day-header-line"
                   style={{
@@ -667,14 +820,12 @@ export default function TripPlanner() {
               const showDayHeader =
                 activeDay === "Overview" &&
                 (idx === 0 || listItems[idx - 1].day !== stop.day);
-
               const nextStop = listItems[idx + 1];
               const isWalk = nextStop?.type === "attraction";
               const exactDur = routeLegs[idx];
               const roughDur = nextStop
                 ? calculateRoughDuration(stop, nextStop, nextStop.type)
                 : null;
-
               const finalDuration =
                 !isWalk && exactDur
                   ? exactDur
@@ -690,8 +841,8 @@ export default function TripPlanner() {
                 <React.Fragment key={stop.uniqueKey}>
                   {showDayHeader && (
                     <div className="day-separator">
-                      Day {stop.day}
-                      <span>• {getDateForDay(stop.day)}</span>
+                      Day {stop.day}{" "}
+                      <span>• {getDateForDayString(stop.day)}</span>
                     </div>
                   )}
 
@@ -734,12 +885,7 @@ export default function TripPlanner() {
                         <div className="timeline-action-row">
                           <button
                             className="btn-action-small btn-map"
-                            onClick={() =>
-                              window.open(
-                                `https://www.google.com/maps/search/?api=1&query=$${stop.lat},${stop.lng}`,
-                                "_blank",
-                              )
-                            }
+                            onClick={() => openMapsPoint(stop.lat, stop.lng)}
                           >
                             <Search size={12} /> Map
                           </button>
@@ -759,7 +905,7 @@ export default function TripPlanner() {
                           <button
                             className="btn-icon"
                             onClick={() => {
-                              setFormData({ ...stop });
+                              setFormData({ ...stop, suggestionText: "" });
                               setEditingStopId(stop.id);
                               setIsFormOpen(true);
                             }}
@@ -803,10 +949,7 @@ export default function TripPlanner() {
                       >
                         <button
                           onClick={() =>
-                            window.open(
-                              `https://www.google.com/maps/dir/?api=1&origin=$${stop.lat},${stop.lng}&destination=${nextStop.lat},${nextStop.lng}&travelmode=${isWalk ? "walking" : "driving"}`,
-                              "_blank",
-                            )
+                            openMapsRoute(stop, nextStop, nextStop.type)
                           }
                           className="info-panel-badge"
                         >
@@ -837,6 +980,7 @@ export default function TripPlanner() {
                     lng: "",
                     desc: "",
                     link: "",
+                    suggestionText: "",
                   });
                   setEditingStopId(null);
                   setIsFormOpen(true);
@@ -891,6 +1035,27 @@ export default function TripPlanner() {
 
                   {formData.lat && (
                     <div className="coord-locked">✓ Coordinates locked</div>
+                  )}
+
+                  {/* Smart Routing Suggestion Badge */}
+                  {formData.suggestionText && (
+                    <div
+                      style={{
+                        marginTop: 8,
+                        fontSize: 12,
+                        color: "#1a1a24",
+                        background: "#e5f2d0",
+                        padding: "6px 12px",
+                        borderRadius: 6,
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 6,
+                        fontWeight: 600,
+                      }}
+                    >
+                      <Sparkles size={14} color="#7cce22" />{" "}
+                      {formData.suggestionText}
+                    </div>
                   )}
                 </div>
 
@@ -950,8 +1115,7 @@ export default function TripPlanner() {
                           formData.type === "main" ? "#fdfff1" : "#fff",
                       }}
                     >
-                      <Car size={20} color={COLOR_DRIVE} />
-                      <span>Driving</span>
+                      <Car size={20} color={COLOR_DRIVE} /> <span>Driving</span>
                     </button>
                     <button
                       type="button"
@@ -968,7 +1132,7 @@ export default function TripPlanner() {
                           formData.type === "attraction" ? "#fdfff1" : "#fff",
                       }}
                     >
-                      <Footprints size={20} color={COLOR_WALK} />
+                      <Footprints size={20} color={COLOR_WALK} />{" "}
                       <span>Walking</span>
                     </button>
                   </div>
@@ -1000,6 +1164,7 @@ export default function TripPlanner() {
                         setFormData((prev) => ({
                           ...prev,
                           day: e.target.value,
+                          suggestionText: "",
                         }))
                       }
                       required
