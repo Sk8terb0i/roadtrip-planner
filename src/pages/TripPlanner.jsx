@@ -14,7 +14,6 @@ import {
   useMapsLibrary,
 } from "@vis.gl/react-google-maps";
 import {
-  ArrowLeft,
   Plus,
   Coffee,
   Bed,
@@ -34,6 +33,9 @@ import {
   Sparkles,
   Moon,
   Sun,
+  Home,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 import {
   getTrip,
@@ -86,19 +88,11 @@ const openMapsPoint = (lat, lng) => {
 const openMapsRoute = (start, end, mode) => {
   const isIOS =
     /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
-  if (isIOS) {
-    const dirflg = mode === "attraction" ? "w" : "d";
-    window.open(
-      `http://maps.apple.com/?saddr=${start.lat},${start.lng}&daddr=${end.lat},${end.lng}&dirflg=${dirflg}`,
-      "_blank",
-    );
-  } else {
-    const travelmode = mode === "attraction" ? "walking" : "driving";
-    window.open(
-      `https://www.google.com/maps/dir/?api=1&origin=${start.lat},${start.lng}&destination=${end.lat},${end.lng}&travelmode=${travelmode}`,
-      "_blank",
-    );
-  }
+  const travelmode = mode === "attraction" ? "walking" : "driving";
+  const url = isIOS
+    ? `http://maps.apple.com/?saddr=${start.lat},${start.lng}&daddr=${end.lat},${end.lng}&dirflg=${mode === "attraction" ? "w" : "d"}`
+    : `https://www.google.com/maps/dir/?api=1&origin=${start.lat},${start.lng}&destination=${end.lat},${end.lng}&travelmode=${travelmode}`;
+  window.open(url, "_blank");
 };
 
 const calculateDistance = (start, end) => {
@@ -117,13 +111,14 @@ const calculateDistance = (start, end) => {
 const calculateRoughDuration = (start, end, mode) => {
   const distance = calculateDistance(start, end);
   if (distance === 0) return null;
-  const isWalk = mode === "attraction";
   const mins = Math.round(
-    ((distance * (isWalk ? 1.2 : 1.5)) / (isWalk ? 4.5 : 40)) * 60,
+    ((distance * (mode === "attraction" ? 1.2 : 1.5)) /
+      (mode === "attraction" ? 4.5 : 40)) *
+      60,
   );
-  if (mins < 1) return "1 min";
-  if (mins < 60) return `${mins} min`;
-  return `${Math.floor(mins / 60)}h ${mins % 60}m`;
+  return mins < 60
+    ? `${Math.max(1, mins)} min`
+    : `${Math.floor(mins / 60)}h ${mins % 60}m`;
 };
 
 const formatLinkText = (url) => {
@@ -209,8 +204,8 @@ function MapRouteRenderer({
   const map = useMap();
   const routesLib = useMapsLibrary("routes");
   const mapsLib = useMapsLibrary("maps");
-  const overviewPolylinesRef = useRef([]);
   const activePolylineRef = useRef(null);
+  const overviewPolylinesRef = useRef([]);
 
   useEffect(() => {
     if (!map || !mapsLib) return;
@@ -219,9 +214,7 @@ function MapRouteRenderer({
       strokeOpacity: 0.9,
       strokeWeight: 7,
     });
-    return () => {
-      if (activePolylineRef.current) activePolylineRef.current.setMap(null);
-    };
+    return () => activePolylineRef.current?.setMap(null);
   }, [map, mapsLib]);
 
   useEffect(() => {
@@ -234,17 +227,14 @@ function MapRouteRenderer({
     if (activeDay === "Overview" || listItems.length < 2) {
       if (activeDay === "Overview" && listItems.length > 1) {
         const days = [...new Set(listItems.map((s) => s.day))];
-        const newPolylines = [];
-        days.forEach((day, index) => {
-          const dayStops = listItems.filter((s) => s.day === day);
-          const nextDayStops = listItems.filter(
-            (s) => s.day === days[index + 1],
-          );
-          if (nextDayStops.length > 0) dayStops.push(nextDayStops[0]);
-          if (dayStops.length > 1) {
+        days.forEach((day) => {
+          const dStops = listItems.filter((s) => s.day === day);
+          const nextDayStops = listItems.filter((s) => s.day === day + 1);
+          if (nextDayStops.length > 0) dStops.push(nextDayStops[0]);
+          if (dStops.length > 1) {
             const line = new mapsLib.Polyline({
               map,
-              path: dayStops.map((s) => ({ lat: s.lat, lng: s.lng })),
+              path: dStops.map((s) => ({ lat: s.lat, lng: s.lng })),
               strokeColor: getLavender(day, totalDays),
               strokeOpacity: 0.9,
               strokeWeight: 4,
@@ -256,16 +246,14 @@ function MapRouteRenderer({
                 },
               ],
             });
-            newPolylines.push(line);
+            overviewPolylinesRef.current.push(line);
           }
         });
-        overviewPolylinesRef.current = newPolylines;
       }
       return;
     }
 
-    const directionsService = new routesLib.DirectionsService();
-    directionsService
+    new routesLib.DirectionsService()
       .route({
         origin: { lat: listItems[0].lat, lng: listItems[0].lng },
         destination: {
@@ -283,36 +271,30 @@ function MapRouteRenderer({
       })
       .then((res) => {
         if (res.routes[0]) {
-          const fullPath = [];
-          res.routes[0].legs.forEach((leg) => {
-            leg.steps.forEach((step) => {
+          const path = [];
+          res.routes[0].legs.forEach((leg) =>
+            leg.steps.forEach((step) =>
               step.path.forEach((pt) =>
-                fullPath.push({ lat: pt.lat(), lng: pt.lng() }),
-              );
-            });
-          });
-          activePolylineRef.current.setPath(fullPath);
+                path.push({ lat: pt.lat(), lng: pt.lng() }),
+              ),
+            ),
+          );
+          activePolylineRef.current.setPath(path);
           activePolylineRef.current.setOptions({
             strokeColor: getLavender(parseInt(activeDay), totalDays),
           });
           activePolylineRef.current.setMap(map);
-          if (res.routes[0].legs)
-            onLegsCalculated(
-              res.routes[0].legs.map((leg) => leg.duration.text),
-            );
+          onLegsCalculated(res.routes[0].legs.map((l) => l.duration.text));
         }
-      })
-      .catch(() => {});
+      });
   }, [listItems, activeDay, routesLib, mapsLib, map, totalDays]);
 
   useEffect(() => {
     if (!map || listItems.length === 0) return;
     const bounds = new window.google.maps.LatLngBounds();
-    listItems.forEach((stop) =>
-      bounds.extend({ lat: stop.lat, lng: stop.lng }),
-    );
+    listItems.forEach((s) => bounds.extend({ lat: s.lat, lng: s.lng }));
     map.fitBounds(bounds, {
-      top: 40,
+      top: 60,
       right: 40,
       left: 40,
       bottom: window.innerHeight * 0.45,
@@ -326,13 +308,10 @@ function PlaceAutocomplete({ onPlaceSelect }) {
   const placesLib = useMapsLibrary("places");
   useEffect(() => {
     if (!placesLib || !inputRef.current) return;
-    const autocomplete = new placesLib.Autocomplete(inputRef.current, {
+    const auto = new placesLib.Autocomplete(inputRef.current, {
       fields: ["geometry", "name", "formatted_address"],
     });
-    const listener = autocomplete.addListener("place_changed", () => {
-      onPlaceSelect(autocomplete.getPlace());
-    });
-    return () => window.google.maps.event.removeListener(listener);
+    auto.addListener("place_changed", () => onPlaceSelect(auto.getPlace()));
   }, [placesLib, onPlaceSelect]);
   return (
     <input
@@ -357,12 +336,20 @@ export default function TripPlanner() {
   const [editingStopId, setEditingStopId] = useState(null);
   const [isPickingOnMap, setIsPickingOnMap] = useState(false);
   const [draggedStopId, setDraggedStopId] = useState(null);
+  const [drawerOpen, setDrawerOpen] = useState(false);
 
-  // --- DEBUGGING THEME LOGIC ---
-  const [theme, setTheme] = useState(localStorage.getItem("theme") || "light");
-  const [mapId, setMapId] = useState(
-    theme === "dark" ? "bc5b8937bf989b803f41d02e" : "DEMO_MAP_ID",
-  );
+  // --- AUTOMATIC THEME LOGIC ---
+  const [theme, setTheme] = useState(() => {
+    const saved = localStorage.getItem("theme");
+    if (saved) return saved;
+    const hour = new Date().getHours();
+    return hour < 7 || hour >= 19 ? "dark" : "light";
+  });
+
+  useEffect(() => {
+    document.documentElement.setAttribute("data-theme", theme);
+    localStorage.setItem("theme", theme);
+  }, [theme]);
 
   const [formData, setFormData] = useState({
     name: "",
@@ -379,38 +366,30 @@ export default function TripPlanner() {
   useEffect(() => {
     loadData();
   }, [tripId]);
-
-  useEffect(() => {
-    console.log("Switching Theme to:", theme);
-    document.documentElement.setAttribute("data-theme", theme);
-    localStorage.setItem("theme", theme);
-    // Force set the mapId state
-    setMapId(theme === "dark" ? "bc5b8937bf989b803f41d02e" : "DEMO_MAP_ID");
-  }, [theme]);
-
-  const toggleTheme = () =>
-    setTheme((prev) => (prev === "light" ? "dark" : "light"));
   const loadData = async () => {
     setTrip(await getTrip(tripId));
     setStops(await getStops(tripId));
   };
-  const handleLegsCalculated = useCallback((newLegs) => {
-    setRouteLegs((prev) =>
-      JSON.stringify(prev) === JSON.stringify(newLegs) ? prev : newLegs,
-    );
-  }, []);
+
+  const handleLegsCalculated = useCallback(
+    (newLegs) =>
+      setRouteLegs((p) =>
+        JSON.stringify(p) === JSON.stringify(newLegs) ? p : newLegs,
+      ),
+    [],
+  );
   const getDateForDayRaw = useCallback(
-    (dayNum) => {
-      if (!trip || !trip.startDate) return null;
+    (dNum) => {
+      if (!trip?.startDate) return null;
       const d = new Date(trip.startDate);
-      d.setDate(d.getDate() + (parseInt(dayNum) - 1));
+      d.setDate(d.getDate() + (parseInt(dNum) - 1));
       return d;
     },
     [trip],
   );
   const getDateForDayString = useCallback(
-    (dayNum) => {
-      const d = getDateForDayRaw(dayNum);
+    (dNum) => {
+      const d = getDateForDayRaw(dNum);
       return d
         ? d.toLocaleDateString("en-US", {
             weekday: "long",
@@ -448,16 +427,10 @@ export default function TripPlanner() {
   }, [activeDay, displayedStops, sortedStops]);
 
   const listItems = useMemo(() => {
-    if (activeDay === "Overview")
-      return displayedStops.map((s) => ({ ...s, uniqueKey: s.id }));
     let items = displayedStops.map((s) => ({ ...s, uniqueKey: s.id }));
-    if (anchorStop)
+    if (activeDay !== "Overview" && anchorStop)
       items = [
-        {
-          ...anchorStop,
-          isAnchor: true,
-          uniqueKey: `anchor-start-${anchorStop.id}`,
-        },
+        { ...anchorStop, isAnchor: true, uniqueKey: `a-${anchorStop.id}` },
         ...items,
       ];
     return items;
@@ -471,51 +444,52 @@ export default function TripPlanner() {
   const handleMapClick = async (e) => {
     if (!isPickingOnMap || !e.detail.latLng) return;
     const { lat, lng } = e.detail.latLng;
-    let locationName = "Pinned Location";
+    let name = "Pinned Location";
     try {
-      const geocoder = new window.google.maps.Geocoder();
-      const res = await geocoder.geocode({ location: { lat, lng } });
+      const res = await new window.google.maps.Geocoder().geocode({
+        location: { lat, lng },
+      });
       if (res.results[0])
-        locationName =
+        name =
           res.results[0].address_components[0].short_name ||
           res.results[0].formatted_address.split(",")[0];
-    } catch (err) {}
-    processPlaceSelection(lat, lng, locationName);
+    } catch {}
+    processPlaceSelection(lat, lng, name);
     setIsPickingOnMap(false);
     setIsFormOpen(true);
   };
 
   const processPlaceSelection = (lat, lng, name) => {
-    let suggestedDay = formData.day,
-      suggestionText = "";
+    let sDay = formData.day,
+      sText = "";
     if (activeDay === "Overview" && stops.length > 0) {
-      let minDetour = Infinity,
-        bestDay = 1;
-      uniqueDays.forEach((day) => {
+      let minD = Infinity,
+        bDay = 1;
+      uniqueDays.forEach((d) => {
         const dStops = stops
-          .filter((s) => s.day === day)
+          .filter((s) => s.day === d)
           .sort((a, b) => a.order - b.order);
         for (let i = 0; i < dStops.length - 1; i++) {
-          const detour =
+          const det =
             calculateDistance(dStops[i], { lat, lng }) +
             calculateDistance({ lat, lng }, dStops[i + 1]) -
             calculateDistance(dStops[i], dStops[i + 1]);
-          if (detour < minDetour) {
-            minDetour = detour;
-            bestDay = day;
+          if (det < minD) {
+            minD = det;
+            bDay = d;
           }
         }
       });
-      suggestedDay = bestDay;
-      suggestionText = `✨ Smart assigned to Day ${bestDay}`;
+      sDay = bDay;
+      sText = `✨ Smart assigned to Day ${bDay}`;
     }
-    setFormData((prev) => ({
-      ...prev,
+    setFormData((p) => ({
+      ...p,
       name,
       lat,
       lng,
-      day: suggestedDay,
-      suggestionText,
+      day: sDay,
+      suggestionText: sText,
     }));
   };
 
@@ -541,50 +515,42 @@ export default function TripPlanner() {
     setDraggedStopId(id);
     e.dataTransfer.effectAllowed = "move";
   };
-  const handleDrop = async (e, targetId) => {
+  const handleDrop = async (e, tId) => {
     e.preventDefault();
-    if (!draggedStopId || draggedStopId === targetId) {
-      setDraggedStopId(null);
-      return;
-    }
-    const dayStops = stops
+    if (!draggedStopId || draggedStopId === tId) return;
+    const dStops = stops
       .filter((s) => s.day === parseInt(activeDay))
       .sort((a, b) => a.order - b.order);
-    const draggedIdx = dayStops.findIndex((s) => s.id === draggedStopId);
-    const targetIdx = dayStops.findIndex((s) => s.id === targetId);
-    if (draggedIdx === -1 || targetIdx === -1) {
-      setDraggedStopId(null);
-      return;
-    }
-    const newStops = [...dayStops];
-    const [draggedItem] = newStops.splice(draggedIdx, 1);
-    newStops.splice(targetIdx, 0, draggedItem);
+    const dIdx = dStops.findIndex((s) => s.id === draggedStopId),
+      tIdx = dStops.findIndex((s) => s.id === tId);
+    if (dIdx === -1 || tIdx === -1) return;
+    const nStops = [...dStops];
+    const [item] = nStops.splice(dIdx, 1);
+    nStops.splice(tIdx, 0, item);
     await Promise.all(
-      newStops.map((s, index) => updateStop(tripId, s.id, { order: index })),
+      nStops.map((s, i) => updateStop(tripId, s.id, { order: i })),
     );
     loadData();
     setDraggedStopId(null);
   };
 
   useEffect(() => {
-    const handleMove = (e) => {
+    const move = (e) => {
       if (!isDragging) return;
-      const clientY = e.type.includes("touch")
-        ? e.touches[0].clientY
-        : e.clientY;
-      const h = ((window.innerHeight - clientY) / window.innerHeight) * 100;
+      const y = e.type.includes("touch") ? e.touches[0].clientY : e.clientY;
+      const h = ((window.innerHeight - y) / window.innerHeight) * 100;
       if (h >= 15 && h <= 90) setSheetHeight(h);
     };
     if (isDragging) {
-      window.addEventListener("mousemove", handleMove);
+      window.addEventListener("mousemove", move);
       window.addEventListener("mouseup", () => setIsDragging(false));
-      window.addEventListener("touchmove", handleMove);
+      window.addEventListener("touchmove", move);
       window.addEventListener("touchend", () => setIsDragging(false));
     }
     return () => {
-      window.removeEventListener("mousemove", handleMove);
+      window.removeEventListener("mousemove", move);
       window.removeEventListener("mouseup", () => setIsDragging(false));
-      window.removeEventListener("touchmove", handleMove);
+      window.removeEventListener("touchmove", move);
       window.removeEventListener("touchend", () => setIsDragging(false));
     };
   }, [isDragging]);
@@ -598,9 +564,28 @@ export default function TripPlanner() {
 
   return (
     <div className="planner-layout">
-      <button className="theme-toggle" onClick={toggleTheme}>
-        {theme === "light" ? <Moon size={18} /> : <Sun size={18} />}
-      </button>
+      {/* --- TOP UTILITY DRAWER --- */}
+      <div className={`utility-drawer ${drawerOpen ? "open" : ""}`}>
+        <div
+          className="drawer-handle-container"
+          onClick={() => setDrawerOpen(!drawerOpen)}
+        >
+          <div className="drawer-handle-line"></div>
+        </div>
+        <div className="drawer-content">
+          <Link to="/" className="drawer-item">
+            <Home size={20} />
+            <span>Itineraries</span>
+          </Link>
+          <button
+            className="drawer-item"
+            onClick={() => setTheme(theme === "light" ? "dark" : "light")}
+          >
+            {theme === "light" ? <Moon size={20} /> : <Sun size={20} />}
+            <span>{theme === "light" ? "Dark Mode" : "Light Mode"}</span>
+          </button>
+        </div>
+      </div>
 
       {isPickingOnMap && (
         <div className="map-picking-banner">
@@ -619,21 +604,17 @@ export default function TripPlanner() {
         </div>
       )}
 
+      {/* APIProvider reset key ensures Map tiles refresh style on theme toggle */}
       <APIProvider
         apiKey={import.meta.env.VITE_GOOGLE_MAPS_API_KEY}
         version="weekly"
+        key={`provider-${theme}`}
       >
         <div className="map-half">
-          <Link to="/" className="back-btn">
-            <ArrowLeft size={20} />
-          </Link>
           <Map
-            // We use the same Map ID for both because it contains both styles
-            mapId="bc5b8937bf989b803f41d02e"
-            // This is the key: it tells Google which slot (Light/Dark) to active
-            colorScheme={theme === "dark" ? "DARK" : "LIGHT"}
-            // Keep the key so React forces a refresh of the map tiles
             key={`map-${theme}`}
+            mapId="bc5b8937bf989b803f41d02e"
+            colorScheme={theme === "dark" ? "DARK" : "LIGHT"}
             defaultCenter={defaultCenter}
             defaultZoom={8}
             gestureHandling="greedy"
@@ -647,26 +628,25 @@ export default function TripPlanner() {
               onLegsCalculated={handleLegsCalculated}
               totalDays={totalDays}
             />
-            {listItems.map((stop) => (
+            {listItems.map((s) => (
               <AdvancedMarker
-                key={stop.uniqueKey}
-                position={{ lat: stop.lat, lng: stop.lng }}
-                onClick={() => {
-                  if (activeDay === "Overview" && !stop.isAnchor)
-                    setActiveDay(stop.day);
-                }}
+                key={s.uniqueKey}
+                position={{ lat: s.lat, lng: s.lng }}
+                onClick={() =>
+                  activeDay === "Overview" && !s.isAnchor && setActiveDay(s.day)
+                }
               >
                 <div
                   className="custom-marker"
                   style={{
-                    backgroundColor: stop.isAnchor
+                    backgroundColor: s.isAnchor
                       ? "var(--text-main)"
-                      : getPistachio(stop.day, totalDays),
-                    color: stop.isAnchor ? "var(--bg-main)" : "#1a1a24",
+                      : getPistachio(s.day, totalDays),
+                    color: s.isAnchor ? "var(--bg-main)" : "#1a1a24",
                     cursor: activeDay === "Overview" ? "pointer" : "default",
                   }}
                 >
-                  {renderIconById(stop.icon, 16)}
+                  {renderIconById(s.icon, 16)}
                 </div>
               </AdvancedMarker>
             ))}
@@ -704,29 +684,28 @@ export default function TripPlanner() {
               >
                 Overview
               </button>
-              {uniqueDays.map((day) => {
-                const dayColor = getLavender(day, totalDays);
-                return (
-                  <button
-                    key={day}
-                    className={`day-pill ${activeDay === day ? "active" : ""}`}
-                    onClick={() => setActiveDay(day)}
-                    style={
-                      activeDay === day
-                        ? { backgroundColor: dayColor, color: "#fff" }
-                        : {
-                            borderBottom: `3px solid ${dayColor}`,
-                            color: "var(--text-muted)",
-                          }
-                    }
-                  >
-                    Day {day}
-                  </button>
-                );
-              })}
+              {uniqueDays.map((d) => (
+                <button
+                  key={d}
+                  className={`day-pill ${activeDay === d ? "active" : ""}`}
+                  onClick={() => setActiveDay(d)}
+                  style={
+                    activeDay === d
+                      ? {
+                          backgroundColor: getLavender(d, totalDays),
+                          color: "#fff",
+                        }
+                      : {
+                          borderBottom: `3px solid ${getLavender(d, totalDays)}`,
+                          color: "var(--text-muted)",
+                        }
+                  }
+                >
+                  Day {d}
+                </button>
+              ))}
             </div>
           </div>
-
           <div className="timeline-container">
             {activeDay !== "Overview" && trip.startDate && (
               <div className="day-header-container">
@@ -750,76 +729,75 @@ export default function TripPlanner() {
                 ></div>
               </div>
             )}
-
-            {listItems.map((stop, idx) => {
-              const showHeader =
+            {listItems.map((s, idx) => {
+              const showH =
                 activeDay === "Overview" &&
-                (idx === 0 || listItems[idx - 1].day !== stop.day);
-              const next = listItems[idx + 1];
-              const isWalk = next?.type === "attraction";
+                (idx === 0 || listItems[idx - 1].day !== s.day);
+              const next = listItems[idx + 1],
+                isW = next?.type === "attraction";
               const dur =
-                !isWalk && routeLegs[idx]
+                !isW && routeLegs[idx]
                   ? routeLegs[idx]
-                  : calculateRoughDuration(stop, next, next?.type);
+                  : calculateRoughDuration(s, next, next?.type);
               return (
-                <React.Fragment key={stop.uniqueKey}>
-                  {showHeader && (
+                <React.Fragment key={s.uniqueKey}>
+                  {showH && (
                     <div className="day-separator">
-                      Day {stop.day}{" "}
-                      <span>• {getDateForDayString(stop.day)}</span>
+                      Day {s.day} <span>• {getDateForDayString(s.day)}</span>
                     </div>
                   )}
                   <div
                     className="timeline-item"
-                    draggable={activeDay !== "Overview" && !stop.isAnchor}
-                    onDragStart={(e) => handleDragStart(e, stop.id)}
+                    draggable={activeDay !== "Overview" && !s.isAnchor}
+                    onDragStart={(e) => handleDragStart(e, s.id)}
                     onDragOver={(e) => e.preventDefault()}
-                    onDrop={(e) => handleDrop(e, stop.id)}
-                    style={{ opacity: draggedStopId === stop.id ? 0.4 : 1 }}
+                    onDrop={(e) => handleDrop(e, s.id)}
+                    style={{
+                      opacity: draggedStopId === s.id ? 0.4 : 1,
+                      transition: "opacity 0.2s",
+                    }}
                   >
                     <div
                       className="timeline-icon"
                       style={{
-                        background: stop.isAnchor
+                        background: s.isAnchor
                           ? "var(--text-main)"
-                          : getPistachio(stop.day, totalDays),
-                        color: stop.isAnchor ? "var(--bg-main)" : "#1a1a24",
+                          : getPistachio(s.day, totalDays),
+                        color: s.isAnchor ? "var(--bg-main)" : "#1a1a24",
                       }}
                     >
-                      {renderIconById(stop.icon, 14)}
+                      {renderIconById(s.icon, 14)}
                     </div>
                     <div className="timeline-content">
                       <div style={{ flex: 1 }}>
                         <h3 className="timeline-title">
-                          {stop.isAnchor ? `Start: ${stop.name}` : stop.name}
+                          {s.isAnchor ? `Start: ${s.name}` : s.name}
                         </h3>
-                        {stop.desc && (
-                          <p className="timeline-desc">{stop.desc}</p>
-                        )}
+                        {s.desc && <p className="timeline-desc">{s.desc}</p>}
                         <div className="timeline-action-row">
                           <button
                             className="btn-action-small btn-map"
-                            onClick={() => openMapsPoint(stop.lat, stop.lng)}
+                            onClick={() => openMapsPoint(s.lat, s.lng)}
                           >
                             <Search size={12} /> Map
                           </button>
-                          {stop.link && (
+                          {s.link && (
                             <button
                               className="btn-action-small btn-link"
-                              onClick={() => window.open(stop.link, "_blank")}
+                              onClick={() => window.open(s.link, "_blank")}
                             >
-                              <LinkIcon size={12} /> {formatLinkText(stop.link)}
+                              <LinkIcon size={12} /> {formatLinkText(s.link)}
                             </button>
                           )}
                         </div>
                       </div>
-                      {!stop.isAnchor && (
+                      {!s.isAnchor && (
                         <div className="timeline-controls">
                           <button
                             className="btn-icon"
                             onClick={() => {
-                              setFormData({ ...stop, suggestionText: "" });
-                              setEditingStopId(stop.id);
+                              setFormData({ ...s, suggestionText: "" });
+                              setEditingStopId(s.id);
                               setIsFormOpen(true);
                             }}
                           >
@@ -839,22 +817,22 @@ export default function TripPlanner() {
                       <div
                         className="duration-bridge-line"
                         style={{
-                          borderLeft: `2px dashed ${isWalk ? COLOR_WALK : getLavender(stop.day, totalDays)}`,
+                          borderLeft: `2px dashed ${isW ? COLOR_WALK : getLavender(s.day, totalDays)}`,
                         }}
                       >
                         <button
-                          onClick={() => openMapsRoute(stop, next, next.type)}
+                          onClick={() => openMapsRoute(s, next, next.type)}
                           className="info-panel-badge"
                         >
-                          {isWalk ? (
+                          {isW ? (
                             <Footprints size={12} color={COLOR_WALK} />
                           ) : (
                             <Car
                               size={12}
-                              color={getLavender(stop.day, totalDays)}
+                              color={getLavender(s.day, totalDays)}
                             />
                           )}
-                          <span>{dur}</span>
+                          <span>{dur}</span>{" "}
                           <ExternalLink size={10} style={{ opacity: 0.3 }} />
                         </button>
                       </div>
@@ -912,7 +890,17 @@ export default function TripPlanner() {
                 <div className="form-section">
                   <span className="label">1. Find Location</span>
                   <div className="autocomplete-row">
-                    <PlaceAutocomplete onPlaceSelect={handlePlaceSelect} />
+                    <PlaceAutocomplete
+                      onPlaceSelect={(p) => {
+                        if (p.geometry)
+                          setFormData((f) => ({
+                            ...f,
+                            name: p.name,
+                            lat: p.geometry.location.lat(),
+                            lng: p.geometry.location.lng(),
+                          }));
+                      }}
+                    />
                     <button
                       type="button"
                       className="btn-pick-map"
@@ -920,8 +908,9 @@ export default function TripPlanner() {
                         setIsPickingOnMap(true);
                         setIsFormOpen(false);
                       }}
+                      title="Pick on map"
                     >
-                      <MousePointer2 size={18} color="var(--text-main)" />
+                      <MousePointer2 size={18} />
                     </button>
                   </div>
                   {formData.lat && <div className="coord-locked">✓ Locked</div>}
@@ -953,7 +942,7 @@ export default function TripPlanner() {
                     placeholder="https://..."
                     value={formData.link || ""}
                     onChange={(e) =>
-                      setFormData((prev) => ({ ...prev, link: e.target.value }))
+                      setFormData((p) => ({ ...p, link: e.target.value }))
                     }
                   />
                 </div>
@@ -966,7 +955,7 @@ export default function TripPlanner() {
                         key={ic.id}
                         className="icon-btn"
                         onClick={() =>
-                          setFormData((prev) => ({ ...prev, icon: ic.id }))
+                          setFormData((p) => ({ ...p, icon: ic.id }))
                         }
                         style={{
                           borderColor:
@@ -987,7 +976,7 @@ export default function TripPlanner() {
                       type="button"
                       className="mode-btn"
                       onClick={() =>
-                        setFormData((prev) => ({ ...prev, type: "main" }))
+                        setFormData((p) => ({ ...p, type: "main" }))
                       }
                       style={{
                         borderColor:
@@ -1002,7 +991,7 @@ export default function TripPlanner() {
                       type="button"
                       className="mode-btn"
                       onClick={() =>
-                        setFormData((prev) => ({ ...prev, type: "attraction" }))
+                        setFormData((p) => ({ ...p, type: "attraction" }))
                       }
                       style={{
                         borderColor:
@@ -1023,10 +1012,7 @@ export default function TripPlanner() {
                       className="input-field"
                       value={formData.name}
                       onChange={(e) =>
-                        setFormData((prev) => ({
-                          ...prev,
-                          name: e.target.value,
-                        }))
+                        setFormData((p) => ({ ...p, name: e.target.value }))
                       }
                       required
                     />
@@ -1039,8 +1025,8 @@ export default function TripPlanner() {
                       className="input-field"
                       value={formData.day}
                       onChange={(e) =>
-                        setFormData((prev) => ({
-                          ...prev,
+                        setFormData((p) => ({
+                          ...p,
                           day: e.target.value,
                           suggestionText: "",
                         }))
@@ -1055,12 +1041,12 @@ export default function TripPlanner() {
                     className="input-field"
                     value={formData.desc}
                     onChange={(e) =>
-                      setFormData((prev) => ({ ...prev, desc: e.target.value }))
+                      setFormData((p) => ({ ...p, desc: e.target.value }))
                     }
                   />
                 </div>
                 <button type="submit" className="btn-primary">
-                  Save
+                  Save to Itinerary
                 </button>
               </form>
             </div>

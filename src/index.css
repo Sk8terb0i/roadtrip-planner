@@ -766,3 +766,74 @@ textarea.input-field {
 [data-theme="dark"] .timeline-container {
   scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
 }
+
+/* --- Top Utility Drawer --- */
+.utility-drawer {
+  position: absolute;
+  top: -100px; /* Hidden by default */
+  left: 0;
+  right: 0;
+  height: 100px;
+  background: var(--card-bg);
+  z-index: 2000;
+  border-bottom: 1px solid var(--border-color);
+  box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.utility-drawer.open {
+  transform: translateY(100px);
+}
+
+.drawer-handle-container {
+  position: absolute;
+  bottom: -24px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 60px;
+  height: 24px;
+  background: #007bff00;
+  border-radius: 0 0 12px 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.drawer-handle-line {
+  width: 24px;
+  height: 4px;
+  background: var(--text-muted);
+  border-radius: 2px;
+  opacity: 0.3;
+}
+
+.drawer-content {
+  padding: 0 24px;
+  display: flex;
+  justify-content: space-around;
+  align-items: center;
+}
+
+.drawer-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  background: none;
+  border: none;
+  color: var(--text-main);
+  text-decoration: none;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.drawer-item span {
+  opacity: 0.7;
+}
