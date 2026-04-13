@@ -4,18 +4,18 @@
    THEME VARIABLES (Original Light & Clean Aesthetic)
    ========================================================================== */
 :root {
-  --bg-gradient: linear-gradient(145deg, #f3f0f9 0%, #f7faf2 100%);
+  --bg-gradient: #f4e8fede;
   --bg-main: #fdfcfd;
-  --card-bg: #fdfff1; /* The soft yellow/white of the bottom sheet */
-  --card-glass: rgba(255, 255, 255, 0.85); /* Landing page cards */
+  --card-bg: #f8f0ffea; /* The soft yellow/white of the bottom sheet */
+  --card-glass: rgba(238, 251, 232, 0.85); /* Landing page cards */
   --text-main: #1a1a24;
   --text-muted: #646473;
   --border-color: rgba(0, 0, 0, 0.1);
   --border-light: #eee;
   --shadow-sm: 0 4px 12px rgba(0,0,0,0.1);
   --shadow-lg: 0 -15px 40px rgba(0,0,0,0.12);
-  --radius-base: 12px;
-  --radius-lg: 24px;
+  --radius-base: 8px;
+  --radius-lg: 12px;
 }
 
 /* --- Reset & Base --- */
@@ -53,7 +53,7 @@ body {
   text-transform: uppercase;
   letter-spacing: 1px;
   font-weight: 600;
-  color: #5a5a66;
+  color: #66605a;
   margin-bottom: 8px;
   display: block;
 }
@@ -171,28 +171,42 @@ body {
   border-radius: 10px;
 }
 
-/* --- Navigation & Buttons --- */
+/* --- Navigation & Segmented Control --- */
 .day-filters {
   display: flex;
-  gap: 10px;
+  gap: 8px;
   overflow-x: auto;
-  padding-bottom: 10px;
+  padding: 8px 4px; /* Added padding to ensure the border-bottom is visible */
+  background: transparent; 
+  margin-bottom: 16px;
   -webkit-overflow-scrolling: touch;
 }
 
 .day-pill {
-  padding: 8px 18px;
-  border: 1px solid transparent;
-  border-radius: 20px;
+  padding: 6px 16px 8px 16px; /* Adjusted bottom padding for the indicator */
+  border: none;
+  border-radius: 8px 8px 8px 8px; /* Slightly more rounded on top */
   font-size: 13px;
-  font-weight: 500;
+  font-weight: 600;
   white-space: nowrap;
   cursor: pointer;
-  transition: opacity 0.2s;
+  transition: all 0.2s ease;
+  background: #fafafaee; /* Very subtle base */
 }
 
+.day-pill.active {
+  background: #ffffff; /* Pops out of the grey track */
+  color: var(--text-main);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08); /* Lifted effect */
+}
+
+/* Remove the old opacity-based inactive state */
 .day-pill:not(.active) {
-  opacity: 0.6;
+  opacity: 1; 
+}
+
+.day-pill:hover:not(.active) {
+  background: rgba(255, 255, 255, 0.5);
 }
 
 .btn-primary {
@@ -222,7 +236,7 @@ body {
 .timeline-item {
   position: relative;
   padding-left: 35px;
-  margin-bottom: 0px; 
+  margin-bottom: 24px; /* Increased from 0px to 24px for more breathing room */
 }
 
 .timeline-icon {
@@ -527,8 +541,8 @@ textarea.input-field {
 
 .duration-bridge-line {
   padding-left: 19px;
-  padding-bottom: 24px;
-  padding-top: 8px;
+  padding-bottom: 32px; /* Increased to match the new item margin */
+  padding-top: 12px;
 }
 
 .modal-header-row {

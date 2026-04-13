@@ -23,8 +23,6 @@ import {
   Search,
   Edit2,
   Trash2,
-  ChevronUp,
-  ChevronDown,
   Footprints,
   ExternalLink,
   Car,
@@ -719,26 +717,32 @@ export default function TripPlanner() {
               <button
                 className={`day-pill ${activeDay === "Overview" ? "active" : ""}`}
                 onClick={() => setActiveDay("Overview")}
-                style={{
-                  background: "var(--text-main)",
-                  borderColor: "var(--text-main)",
-                  color: "var(--bg-main)",
-                }}
+                style={
+                  activeDay === "Overview"
+                    ? { background: "var(--text-main)", color: "#fff" }
+                    : { borderBottom: "3px solid var(--text-main)" }
+                }
               >
                 Overview
               </button>
+
               {uniqueDays.map((day) => {
                 const dayColor = getLavender(day, totalDays);
+                const isActive = activeDay === day;
+
                 return (
                   <button
                     key={day}
-                    className={`day-pill ${activeDay === day ? "active" : ""}`}
+                    className={`day-pill ${isActive ? "active" : ""}`}
                     onClick={() => setActiveDay(day)}
-                    style={{
-                      backgroundColor: dayColor,
-                      borderColor: dayColor,
-                      color: "var(--card-bg)",
-                    }}
+                    style={
+                      isActive
+                        ? { backgroundColor: dayColor, color: "#fff" }
+                        : {
+                            borderBottom: `3px solid ${dayColor}`,
+                            color: "var(--text-muted)",
+                          }
+                    }
                   >
                     Day {day}
                   </button>
@@ -870,25 +874,9 @@ export default function TripPlanner() {
                             <Edit2 size={16} />
                           </button>
                           {activeDay !== "Overview" && (
-                            <>
-                              <div className="chevron-group">
-                                <button
-                                  className="btn-icon"
-                                  onClick={() => handleMoveStop(stop, "up")}
-                                >
-                                  <ChevronUp size={16} />
-                                </button>
-                                <button
-                                  className="btn-icon"
-                                  onClick={() => handleMoveStop(stop, "down")}
-                                >
-                                  <ChevronDown size={16} />
-                                </button>
-                              </div>
-                              <div className="drag-handle">
-                                <GripVertical size={16} />
-                              </div>
-                            </>
+                            <div className="drag-handle">
+                              <GripVertical size={16} />
+                            </div>
                           )}
                         </div>
                       )}
