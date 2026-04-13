@@ -4,18 +4,51 @@
    THEME VARIABLES (Original Light & Clean Aesthetic)
    ========================================================================== */
 :root {
+  /* Default Light Mode */
   --bg-gradient: #f4e8fede;
   --bg-main: #fdfcfd;
-  --card-bg: #f8f0ffea; /* The soft yellow/white of the bottom sheet */
-  --card-glass: rgba(238, 251, 232, 0.85); /* Landing page cards */
+  --card-bg: #f8f0ffea;
+  --card-glass: rgba(238, 251, 232, 0.85);
   --text-main: #1a1a24;
   --text-muted: #646473;
   --border-color: rgba(0, 0, 0, 0.1);
   --border-light: #eee;
   --shadow-sm: 0 4px 12px rgba(0,0,0,0.1);
   --shadow-lg: 0 -15px 40px rgba(0,0,0,0.12);
-  --radius-base: 8px;
-  --radius-lg: 12px;
+  --pill-inactive: #fafafaee;
+}
+
+[data-theme="dark"] {
+  /* Dark Mode Inversion */
+  --bg-gradient: #120e16;
+  --bg-main: #1a1620;
+  --card-bg: #241e2eea;
+  --card-glass: rgba(45, 55, 43, 0.85); /* Darker pistachio tint */
+  --text-main: #ebebee;
+  --text-muted: #a39eb8;
+  --border-color: rgba(255, 255, 255, 0.1);
+  --border-light: #332d3d;
+  --shadow-sm: 0 4px 12px rgba(0,0,0,0.4);
+  --shadow-lg: 0 -15px 40px rgba(0,0,0,0.6);
+  --pill-inactive: #2d2736;
+}
+
+/* --- Added Night Mode Toggle Styling --- */
+.theme-toggle {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  z-index: 100;
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  color: var(--text-main);
+  padding: 8px;
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: var(--shadow-sm);
 }
 
 /* --- Reset & Base --- */
@@ -178,20 +211,21 @@ body {
   overflow-x: auto;
   padding: 8px 4px; /* Added padding to ensure the border-bottom is visible */
   background: transparent; 
-  margin-bottom: 16px;
+  margin-bottom: 0px;
   -webkit-overflow-scrolling: touch;
 }
 
 .day-pill {
-  padding: 6px 16px 8px 16px; /* Adjusted bottom padding for the indicator */
+  padding: 6px 16px 8px 16px;
   border: none;
-  border-radius: 8px 8px 8px 8px; /* Slightly more rounded on top */
+  border-radius: 8px;
   font-size: 13px;
   font-weight: 600;
   white-space: nowrap;
   cursor: pointer;
   transition: all 0.2s ease;
-  background: #fafafaee; /* Very subtle base */
+  background: var(--pill-inactive); /* Changed from hardcoded #fafafaee */
+  color: var(--text-muted);
 }
 
 .day-pill.active {
@@ -228,7 +262,7 @@ body {
 
 /* --- Timeline Elements --- */
 .timeline-container {
-  padding: 24px;
+  padding: 0px 24px 24px 24px;
   overflow-y: auto;
   flex: 1;
 }
@@ -634,4 +668,101 @@ textarea.input-field {
 .mode-btn span {
   font-size: 14px;
   font-weight: 500;
+}
+
+/* ==========================================================================
+   NIGHT MODE SPECIFIC OVERRIDES
+   ========================================================================== */
+
+[data-theme="dark"] .day-separator {
+  background: var(--pill-inactive); /* Matches your other dark pills */
+  color: var(--text-main);
+  border: 1px solid var(--border-color);
+}
+
+[data-theme="dark"] .day-separator span {
+  color: var(--text-muted); /* Makes the "• Monday, Apr 13" part readable */
+}
+
+/* 1. Targeting the Driving Duration Pills (Overview & Timeline) */
+[data-theme="dark"] .info-panel-badge {
+  /* Using !important to override the hardcoded #ffffff in the base class */
+  background: var(--pill-inactive) !important;
+  color: var(--text-main);
+  border: 1px solid var(--border-color) !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+/* Ensures the text inside the duration pill is readable */
+[data-theme="dark"] .info-panel-badge span {
+  color: var(--text-main);
+}
+
+
+/* 2. Targeting the "Add Location" Button */
+[data-theme="dark"] .btn-primary {
+  /* In dark mode, the button's background should be a lighter "inverted" dark color */
+  background: var(--card-bg) !important;
+  color: var(--text-main) !important;
+  border: 1px solid var(--border-color);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+
+/* Optional: Subtle hover effect for the button in dark mode */
+[data-theme="dark"] .btn-primary:hover {
+  background: var(--pill-inactive) !important;
+}
+
+/* 3. Targeting the "Map" buttons in the timeline/day view */
+[data-theme="dark"] .btn-map {
+  background: var(--pill-inactive) !important;
+  color: var(--text-main) !important;
+  border: 1px solid var(--border-color);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+}
+
+/* Optional: Invert the icon color specifically if needed */
+[data-theme="dark"] .btn-map svg {
+  color: var(--text-main);
+}
+
+/* --- Sleek Custom Scrollbar --- */
+
+/* Width and track */
+.timeline-container::-webkit-scrollbar {
+  width: 6px;
+}
+
+.timeline-container::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* The actual draggable thumb */
+.timeline-container::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.1); /* Subtle dark for light mode */
+  border-radius: 10px;
+}
+
+/* Invert for Night Mode */
+[data-theme="dark"] .timeline-container::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15); /* Subtle light for dark mode */
+}
+
+/* Hover effect */
+.timeline-container::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.2);
+}
+
+[data-theme="dark"] .timeline-container::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.25);
+}
+
+/* For Firefox */
+.timeline-container {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(0, 0, 0, 0.1) transparent;
+}
+
+[data-theme="dark"] .timeline-container {
+  scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
 }
